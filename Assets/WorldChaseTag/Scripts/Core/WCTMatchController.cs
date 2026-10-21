@@ -14,7 +14,7 @@ namespace WorldChaseTag.Core
         [SerializeField, Min(1f)] private float chaseDuration = 20.0f;
         [SerializeField, Min(1)] private int maxChases = 16;
         [SerializeField, Min(0f)] private float preChaseDuration = 3.0f;
-        [SerializeField, Min(0f)] private float resultDisplayDuration = 3.5f;
+        [SerializeField, Min(0f)] private float resultDisplayDuration = 6.0f;
         [SerializeField, Min(0f)] private float betweenChasesInterval = 2.5f; // Fast digital transition (configurable)
 
         [Header("Runtime State")]
@@ -46,6 +46,7 @@ namespace WorldChaseTag.Core
         private int nextTeamAChaserIndex = 0;
         private int nextTeamBChaserIndex = 0;
         private bool hasResolvedCurrentChase = false;
+        private int lastCountdownSec = -1;
 
         // Events
         public event Action<WCTMatchState> OnStateChanged;
@@ -205,6 +206,7 @@ namespace WorldChaseTag.Core
 
                 case WCTMatchState.PRE_CHASE:
                     subTimer = preChaseDuration;
+                    lastCountdownSec = -1;
                     hasResolvedCurrentChase = false;
                     OnBannerAnnouncement?.Invoke("GET SET");
                     break;
@@ -265,13 +267,17 @@ namespace WorldChaseTag.Core
             subTimer -= Time.deltaTime;
             int count = Mathf.CeilToInt(subTimer);
 
-            if (count > 0)
+            if (count > 0 && count != lastCountdownSec)
             {
+                lastCountdownSec = count;
                 OnBannerAnnouncement?.Invoke(count.ToString());
+                WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayCountdownBeep(false);
             }
 
             if (subTimer <= 0f)
             {
+                WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayBuzzer();
+                OnBannerAnnouncement?.Invoke("GO!");
                 TransitionState(WCTMatchState.CHASE_ACTIVE);
             }
         }
@@ -315,6 +321,9 @@ namespace WorldChaseTag.Core
             hasResolvedCurrentChase = true;
             lastOutcome = outcome;
 
+            // Immediately sound the loud referee buzzer!
+            WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayBuzzer();
+
             float timeElapsed = Mathf.Clamp(chaseDuration - chaseTimeRemaining, 0f, chaseDuration);
 
             // Record record
@@ -340,6 +349,7 @@ namespace WorldChaseTag.Core
 
                 CurrentEvaderAthlete?.RecordEvasion(20.0f);
                 OnBannerAnnouncement?.Invoke("EVADED! +1 POINT");
+                WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayEvasionWin();
                 record.summary = $"{record.evaderName} survived 20.0s!";
             }
             else if (outcome == ChaseOutcome.Tagged)
@@ -349,6 +359,7 @@ namespace WorldChaseTag.Core
                 CurrentChaserAthlete?.RecordTag(timeElapsed);
                 CurrentEvaderAthlete?.RecordTagged(timeElapsed);
                 OnBannerAnnouncement?.Invoke($"TAGGED! ({timeElapsed:F2}s)");
+                WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayTagSound();
                 record.summary = $"{record.chaserName} tagged {record.evaderName} in {timeElapsed:F2}s!";
             }
             else // OutOfBounds
@@ -356,6 +367,7 @@ namespace WorldChaseTag.Core
                 winningTeam = activeChaserTeam;
                 CurrentEvaderAthlete?.RecordTagged(timeElapsed);
                 OnBannerAnnouncement?.Invoke("OUT OF BOUNDS!");
+                WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayBoundaryViolation();
                 record.summary = $"{record.evaderName} stepped out of bounds at {timeElapsed:F2}s!";
             }
 
@@ -385,25 +397,40 @@ namespace WorldChaseTag.Core
         private void UpdateChaseResult()
         {
             subTimer -= Time.deltaTime;
+
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                ProceedToNextChase();
+                return;
+            }
+
             if (subTimer <= 0f)
             {
-                // Check if match should conclude or rotate
-                if (isSuddenDeath)
-                {
-                    if (suddenDeathChaseCount >= 4)
-                    {
-                        TransitionState(WCTMatchState.MATCH_RESULT);
-                        return;
-                    }
-                }
-                else if (currentChaseNumber >= maxChases)
+                ProceedToNextChase();
+            }
+        }
+
+        public void ProceedToNextChase()
+        {
+            if (currentState != WCTMatchState.CHASE_RESULT && currentState != WCTMatchState.ROLE_ROTATION) return;
+
+            // Check if match should conclude or rotate
+            if (isSuddenDeath)
+            {
+                if (suddenDeathChaseCount >= 4)
                 {
                     TransitionState(WCTMatchState.MATCH_RESULT);
                     return;
                 }
-
-                TransitionState(WCTMatchState.ROLE_ROTATION);
             }
+            else if (currentChaseNumber >= maxChases)
+            {
+                TransitionState(WCTMatchState.MATCH_RESULT);
+                return;
+            }
+
+            RotateAthletes();
+            TransitionState(WCTMatchState.ARENA_LOADING);
         }
 
         private void UpdateRoleRotation()

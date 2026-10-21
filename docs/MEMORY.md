@@ -38,6 +38,23 @@
   3. Main menu allows launching with `> PLAY NOW` button or pressing Enter / Space.
 - **Files Affected:** `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTMenuController.cs`
 
+#### [BUG-002]: No Chase Result Screen, Lack of Audio Feedback on Timer Finish / Game Over, Feeling Stuck
+- **Error Signature:** Timer hits 0:00 (evasion finish) or tag occurs; arena keeps running with no sound/buzzer; timer jumps back to 20.0f; overlay was translucent with overlapping HUD cards; clicking "NEXT CHASE >" restarted the whole match and reset scoreboards.
+- **Root Cause:**
+  1. `WCTAudioSynthesizer` lacked 2D audio configuration (`spatialBlend = 0f`), volume was muted/low, and `PlayBuzzer()` was not invoked when the 20-second timer expired in `WCTMatchController.ResolveChase()`.
+  2. `WCTHUDController`'s timer display checked `IsChaseActive ? TimeRemaining : 20.0f`. When the round finished, `IsChaseActive` turned false, snapping the broadcast timer display immediately back to 20.0s instead of displaying 00:00.
+  3. `DrawChaseResultOverlay()` had no backdrop dimming, causing text to illegibly overlap the tactical minimap and player cards.
+  4. The result button previously called `matchController.StartMatch()` instead of `matchController.ProceedToNextChase()`, wiping out match history and team scores.
+  5. Pre-chase countdown beeps (3, 2, 1) and giant center-screen countdown numerals were not rendered.
+- **Permanent Fix:**
+  1. Set `audioSource.spatialBlend = 0f` and `volume = 1.0f` on `WCTAudioSynthesizer`. Trigger `PlayBuzzer()` immediately upon 20s timeout or tag in `ResolveChase()`, alongside outcome fanfare (`PlayEvasionWin()`, `PlayTagSound()`).
+  2. Added countdown audio beeps on 3, 2, 1 and referee buzzer on "GO!".
+  3. Added `DrawCenterAnnouncementBanner()` in `WCTHUDController` to render large visual cues ("3", "2", "1", "GO!").
+  4. Added a 90% opacity fullscreen backdrop scrim (`GUI.color = new Color(0.04f, 0.06f, 0.09f, 0.90f)`) to `DrawChaseResultOverlay()`, hiding behind-the-scenes minimap/cards so the summary is clear and prominent.
+  5. Fixed timer logic to display exact outcome time (`00:00` for evasion win, exact tag second for tag).
+  6. Added `ProceedToNextChase()` in `WCTMatchController` which preserves team scores and seamlessly rotates the chaser/evader roles, bound to `[SPACE]`, `[ENTER]`, or clicking the button.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Audio/WCTAudioSynthesizer.cs`, `Assets/WorldChaseTag/Scripts/Core/WCTMatchController.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`
+
 ---
 
 ## 3. Architecture Decisions & Inviolable Conventions

@@ -385,8 +385,10 @@ namespace WorldChaseTag.UI
             float sw = Screen.width;
             float sh = Screen.height;
 
+            bool isResultShowing = (matchController.State == WCTMatchState.CHASE_RESULT || matchController.State == WCTMatchState.ROLE_ROTATION);
+
             // 1. Center Crosshair Reticle (Crisp PC Reticle in gameplay)
-            if (showCrosshair && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
+            if (showCrosshair && !isPaused && !isResultShowing && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
             {
                 float cx = sw * 0.5f;
                 float cy = sh * 0.5f;
@@ -402,34 +404,43 @@ namespace WorldChaseTag.UI
             // 2. Top Broadcast Scoreboard Bar
             DrawTopBroadcastHeader(sw);
 
-            // 3. Top-Left Team Players Card & Current Objective
-            DrawTeamPlayersCard(sw, sh);
-            DrawCurrentObjectiveCard(sw, sh);
-
-            // 4. Top-Right Mini Map Card & Status Pills
-            DrawMiniMapCard(sw, sh);
-            DrawStatusPills(sw, sh);
-
-            // 5. Center-Bottom Stamina Bar
-            if (showStaminaBar && playerController != null)
+            if (!isResultShowing)
             {
-                DrawStaminaMeter(sw, sh);
+                // 3. Top-Left Team Players Card & Current Objective
+                DrawTeamPlayersCard(sw, sh);
+                DrawCurrentObjectiveCard(sw, sh);
+
+                // 4. Top-Right Mini Map Card & Status Pills
+                DrawMiniMapCard(sw, sh);
+                DrawStatusPills(sw, sh);
+
+                // 5. Center-Bottom Stamina Bar
+                if (showStaminaBar && playerController != null)
+                {
+                    DrawStaminaMeter(sw, sh);
+                }
+
+                // 6. Clean PC Controls Legend (Esports PC HUD - no mobile joystick / touch circles)
+                if (showParkourPrompts && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
+                {
+                    DrawPCControlsLegend(sw, sh);
+                }
             }
 
-            // 6. Clean PC Controls Legend (Esports PC HUD - no mobile joystick / touch circles)
-            if (showParkourPrompts && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
+            // Center Countdown / Announcement Banner (3, 2, 1, GO!, EVADED, TAGGED)
+            if (!isResultShowing && !isPaused && bannerAlpha > 0.05f && !string.IsNullOrEmpty(activeBannerText))
             {
-                DrawPCControlsLegend(sw, sh);
+                DrawCenterAnnouncementBanner(sw, sh);
             }
 
             // 7. Dynamic Chase Result Overlay (Images 4 & 5)
-            if (matchController.State == WCTMatchState.CHASE_RESULT)
+            if (isResultShowing)
             {
                 DrawChaseResultOverlay(sw, sh);
             }
 
             // 8. Post-Match Tournament Scoreboard (Screen 11)
-            if (matchController.State == WCTMatchState.POST_MATCH)
+            if (matchController.State == WCTMatchState.POST_MATCH || matchController.State == WCTMatchState.MATCH_RESULT)
             {
                 DrawPostMatchScreen(sw, sh);
             }
@@ -476,9 +487,22 @@ namespace WorldChaseTag.UI
             GUI.DrawTexture(new Rect(timerX, barY - 4f, timerW, bannerH + 8f), darkBoxTex);
             GUI.DrawTexture(new Rect(timerX, barY - 4f, timerW, 2f), evaderAccentTex);
 
-            float timeVal = matchController.IsChaseActive ? matchController.TimeRemaining : 20.0f;
+            float timeVal = matchController.TimeRemaining;
+            if (matchController.State == WCTMatchState.PRE_CHASE)
+            {
+                timeVal = 20.0f;
+            }
+            else if (matchController.State == WCTMatchState.CHASE_RESULT || matchController.State == WCTMatchState.ROLE_ROTATION)
+            {
+                timeVal = (matchController.LastOutcome == ChaseOutcome.EvaderSurvived) ? 0f : matchController.TimeRemaining;
+            }
+
             Color timerCol = Color.white;
-            if (matchController.IsChaseActive && timeVal <= 5.0f)
+            if (matchController.State == WCTMatchState.CHASE_RESULT || matchController.State == WCTMatchState.ROLE_ROTATION)
+            {
+                timerCol = (matchController.LastOutcome == ChaseOutcome.EvaderSurvived) ? Color.cyan : Color.red;
+            }
+            else if (matchController.IsChaseActive && timeVal <= 5.0f)
             {
                 float pulse = (Mathf.Sin(Time.time * 12f) + 1f) * 0.5f;
                 timerCol = Color.Lerp(Color.red, Color.yellow, pulse);
@@ -913,28 +937,39 @@ namespace WorldChaseTag.UI
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
+            // Fullscreen backdrop overlay (dims arena so modal stands out)
+            GUI.color = new Color(0.04f, 0.06f, 0.09f, 0.90f);
+            GUI.DrawTexture(new Rect(0, 0, sw, sh), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
             // Top Broadcast header stays on
             DrawTopBroadcastHeader(sw);
 
             bool isEvaded = matchController.LastOutcome == ChaseOutcome.EvaderSurvived;
 
-            float cardW = 340f;
-            float cardX = 60f;
+            float totalW = 740f;
+            float cardW = 350f;
+            float cardX = (sw - totalW) * 0.5f;
+            float rightX = cardX + cardW + 40f;
             float cardY = 120f;
 
             // Large Title Banner
-            titleStyle.fontSize = 36;
-            titleStyle.normal.textColor = isEvaded ? new Color(0.1f, 0.85f, 0.95f) : new Color(0.95f, 0.25f, 0.2f);
-            string titleText = isEvaded ? "EVADER ESCAPES!" : (matchController.LastOutcome == ChaseOutcome.Tagged ? "EVADER TAGGED!" : "OUT OF BOUNDS!");
-            GUI.Label(new Rect(cardX, cardY, 500, 42), titleText, titleStyle);
+            titleStyle.fontSize = 32;
+            titleStyle.alignment = TextAnchor.MiddleCenter;
+            titleStyle.normal.textColor = isEvaded ? new Color(0.1f, 0.88f, 1.0f) : new Color(0.95f, 0.25f, 0.2f);
+            string titleText = isEvaded ? "TIME'S UP — EVADER ESCAPES!" : (matchController.LastOutcome == ChaseOutcome.Tagged ? "TAGGED — CHASER WINS!" : "COURT FAULT — OUT OF BOUNDS!");
+            GUI.Label(new Rect((sw - 740f) * 0.5f, cardY - 45f, 740f, 38f), titleText, titleStyle);
 
-            subtitleStyle.fontSize = 14;
+            subtitleStyle.fontSize = 13;
+            subtitleStyle.alignment = TextAnchor.MiddleCenter;
             subtitleStyle.normal.textColor = Color.white;
-            string subText = isEvaded ? "YOU SURVIVED THE CHASE" : (matchController.LastOutcome == ChaseOutcome.Tagged ? "THE CHASER CAUGHT YOU" : "STEPPED OUT OF 12m COURT");
-            GUI.Label(new Rect(cardX, cardY + 44, 400, 22), subText, subtitleStyle);
+            string subText = isEvaded ? "+1 EVASION POINT AWARDED  •  SURVIVED THE FULL 20.0s" : (matchController.LastOutcome == ChaseOutcome.Tagged ? "CHASER SCORES VALID TAG  •  NO EVASION POINTS AWARDED" : "STEPPED OUT OF 12m ARENA BOUNDARY");
+            GUI.Label(new Rect((sw - 740f) * 0.5f, cardY - 10f, 740f, 22f), subText, subtitleStyle);
+            titleStyle.alignment = TextAnchor.MiddleLeft;
+            subtitleStyle.alignment = TextAnchor.MiddleLeft;
 
             // Left Stats Card
-            float statY = cardY + 75f;
+            float statY = cardY + 22f;
             GUI.DrawTexture(new Rect(cardX, statY, cardW, 230f), darkBoxTex);
             GUI.DrawTexture(new Rect(cardX, statY, 4, 230f), isEvaded ? evaderAccentTex : alertRedTex);
 
@@ -959,17 +994,16 @@ namespace WorldChaseTag.UI
             }
 
             // Right Tactical Route Map Card (Images 4 & 5)
-            float mapW = 340f;
-            float mapX = sw - mapW - 60f;
-            GUI.DrawTexture(new Rect(mapX, statY, mapW, 230f), darkBoxTex);
+            float mapW = 350f;
+            GUI.DrawTexture(new Rect(rightX, statY, mapW, 230f), darkBoxTex);
 
             headerStyle.fontSize = 13;
             headerStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(mapX + 16, statY + 10, mapW - 32, 20), isEvaded ? "CHASE ROUTE (YOU)" : "CHASE REPLAY MAP", headerStyle);
+            GUI.Label(new Rect(rightX + 16, statY + 10, mapW - 32, 20), isEvaded ? "CHASE ROUTE (YOU)" : "CHASE REPLAY MAP", headerStyle);
 
             // 2D Map Schematic
             float miniSize = 140f;
-            float miniX = mapX + 16f;
+            float miniX = rightX + 16f;
             float miniY = statY + 35f;
             GUI.DrawTexture(new Rect(miniX, miniY, miniSize, miniSize), panelBgTex);
 
@@ -982,7 +1016,7 @@ namespace WorldChaseTag.UI
             GUI.color = Color.white;
 
             // Legend
-            float legX = mapX + miniSize + 25f;
+            float legX = rightX + miniSize + 25f;
             float legY = statY + 45f;
             badgeStyle.fontSize = 10;
             badgeStyle.normal.textColor = Color.green;
@@ -994,26 +1028,49 @@ namespace WorldChaseTag.UI
             badgeStyle.normal.textColor = Color.red;
             GUI.Label(new Rect(legX, legY + 72, 110, 18), "- - Chaser Route", badgeStyle);
 
-            // Bottom Buttons (Images 4 & 5)
-            float btnW = 200f;
-            float btnY = sh - 75f;
-            float centerBX = (sw - (btnW * 3 + 40f)) * 0.5f;
+            // Bottom Buttons
+            float btnW = 230f;
+            float btnH = 46f;
+            float btnY = sh - 80f;
+            float centerBX = (sw - (btnW * 3 + 30f)) * 0.5f;
 
-            if (GUI.Button(new Rect(centerBX, btnY, btnW, 42), "PLAY REPLAY"))
+            if (GUI.Button(new Rect(centerBX, btnY, btnW, btnH), "PLAY REPLAY\nWatch chase camera"))
             {
                 WCTAudioSynthesizer.Instance?.PlayUIClick();
             }
 
-            if (GUI.Button(new Rect(centerBX + btnW + 20f, btnY, btnW, 42), "NEXT CHASE >", blueBtnStyle))
+            string nextText = $"NEXT CHASE > ({(int)matchController.SubTimer + 1}s)\nPress SPACE or Click";
+            if (GUI.Button(new Rect(centerBX + btnW + 15f, btnY, btnW, btnH), nextText, blueBtnStyle))
             {
-                matchController.StartMatch(matchController.Mode, matchController.Difficulty);
+                matchController.ProceedToNextChase();
                 WCTAudioSynthesizer.Instance?.PlayBuzzer();
             }
 
-            if (GUI.Button(new Rect(centerBX + (btnW + 20f) * 2, btnY, btnW, 42), "MAIN MENU"))
+            if (GUI.Button(new Rect(centerBX + (btnW + 15f) * 2, btnY, btnW, btnH), "MAIN MENU\nReturn to dashboard"))
             {
                 WCTMenuController.Instance?.OpenScreen(MenuScreen.MainMenu);
             }
+        }
+
+        private void DrawCenterAnnouncementBanner(float sw, float sh)
+        {
+            float cx = sw * 0.5f;
+            float cy = sh * 0.42f;
+
+            bool isNumber = int.TryParse(activeBannerText, out int num);
+            float bannerW = isNumber ? 140f : 440f;
+            float bannerH = isNumber ? 100f : 56f;
+
+            GUI.color = new Color(0.04f, 0.08f, 0.14f, 0.88f * bannerAlpha);
+            GUI.DrawTexture(new Rect(cx - bannerW * 0.5f, cy - bannerH * 0.5f, bannerW, bannerH), darkBoxTex);
+
+            bannerStyle.fontSize = isNumber ? 68 : 34;
+            Color textColor = (activeBannerText == "GO!") ? Color.green : (isNumber ? Color.yellow : Color.cyan);
+            textColor.a = bannerAlpha;
+            bannerStyle.normal.textColor = textColor;
+
+            GUI.Label(new Rect(cx - bannerW * 0.5f, cy - bannerH * 0.5f, bannerW, bannerH), activeBannerText, bannerStyle);
+            GUI.color = Color.white;
         }
 
         private void DrawResultStatRow(float x, float y, float w, string label, string val)

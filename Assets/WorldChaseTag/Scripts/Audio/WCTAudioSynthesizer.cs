@@ -38,6 +38,8 @@ namespace WorldChaseTag.Audio
 
             audioSource = GetComponent<AudioSource>();
             audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f;
+            audioSource.volume = 1.0f;
 
             GenerateClips();
         }

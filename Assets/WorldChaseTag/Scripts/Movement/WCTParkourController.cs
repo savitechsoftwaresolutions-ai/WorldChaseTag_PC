@@ -154,6 +154,7 @@ namespace WorldChaseTag.Movement
                              (WorldChaseTag.UI.WCTHUDController.Instance != null && WorldChaseTag.UI.WCTHUDController.Instance.IsPaused) ||
                              (WorldChaseTag.Core.WCTMatchController.Instance != null && 
                               (WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.CHASE_RESULT || 
+                               WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.ROLE_ROTATION ||
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.MATCH_RESULT ||
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.POST_MATCH));
 
