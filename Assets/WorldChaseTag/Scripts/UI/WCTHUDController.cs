@@ -35,6 +35,7 @@ namespace WorldChaseTag.UI
 
         // UI State
         private bool isPaused = false;
+        public bool IsPaused => isPaused;
         private string activeBannerText = "";
         private float bannerAlpha = 0f;
 
@@ -180,9 +181,25 @@ namespace WorldChaseTag.UI
 
         private void Update()
         {
+            if (isPaused)
+            {
+                if (Cursor.lockState != CursorLockMode.None)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                }
+                if (!Cursor.visible)
+                {
+                    Cursor.visible = true;
+                }
+            }
+
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                TogglePause();
+                // Only toggle pause if master menu is not open
+                if (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen)
+                {
+                    TogglePause();
+                }
             }
 
             if (bannerAlpha > 0f)
@@ -203,6 +220,16 @@ namespace WorldChaseTag.UI
             Cursor.lockState = isPaused ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = isPaused;
             Time.timeScale = isPaused ? 0f : 1f;
+
+            if (playerController == null)
+            {
+                playerController = FindAnyObjectByType<WCTParkourController>();
+            }
+
+            if (playerController != null)
+            {
+                playerController.ControlsEnabled = !isPaused;
+            }
         }
 
         private void InitStyles()
@@ -358,12 +385,12 @@ namespace WorldChaseTag.UI
             float sw = Screen.width;
             float sh = Screen.height;
 
-            // 1. Center Crosshair Reticle
-            if (showCrosshair && Cursor.lockState == CursorLockMode.Locked)
+            // 1. Center Crosshair Reticle (Crisp PC Reticle in gameplay)
+            if (showCrosshair && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
             {
                 float cx = sw * 0.5f;
                 float cy = sh * 0.5f;
-                GUI.color = new Color(1f, 1f, 1f, 0.65f);
+                GUI.color = new Color(1f, 1f, 1f, 0.75f);
                 GUI.DrawTexture(new Rect(cx - 3, cy - 3, 6, 6), Texture2D.whiteTexture);
                 GUI.DrawTexture(new Rect(cx - 14, cy - 1, 8, 2), Texture2D.whiteTexture);
                 GUI.DrawTexture(new Rect(cx + 6, cy - 1, 8, 2), Texture2D.whiteTexture);
@@ -389,11 +416,10 @@ namespace WorldChaseTag.UI
                 DrawStaminaMeter(sw, sh);
             }
 
-            // 6. Bottom Movement Dial & Action Buttons with PC Keycaps
-            if (showParkourPrompts)
+            // 6. Clean PC Controls Legend (Esports PC HUD - no mobile joystick / touch circles)
+            if (showParkourPrompts && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
             {
-                DrawMovementDial(sw, sh);
-                DrawActionButtons(sw, sh);
+                DrawPCControlsLegend(sw, sh);
             }
 
             // 7. Dynamic Chase Result Overlay (Images 4 & 5)
@@ -681,57 +707,20 @@ namespace WorldChaseTag.UI
         }
 
         // ==============================================================
-        // BOTTOM-LEFT: MOVEMENT DIAL (WASD & TAB KEYCAP)
         // ==============================================================
-        private void DrawMovementDial(float sw, float sh)
+        // CLEAN PC CONTROLS LEGEND (Esports PC HUD - no mobile joystick)
+        // ==============================================================
+        private void DrawPCControlsLegend(float sw, float sh)
         {
-            float dialX = 35f;
-            float dialY = sh - 185f;
-            float dialSize = 120f;
+            float barW = 580f;
+            float barH = 26f;
+            float x = (sw - barW) * 0.5f;
+            float y = sh - 28f;
 
-            // "Movement" label
-            smallTextStyle.fontSize = 11;
-            smallTextStyle.normal.textColor = new Color(0.3f, 0.8f, 1.0f);
-            GUI.Label(new Rect(dialX, dialY - 20f, dialSize, 18), "Movement", smallTextStyle);
-
-            // Concentric Rings
-            float dcx = dialX + dialSize * 0.5f;
-            float dcy = dialY + dialSize * 0.5f;
-
-            GUI.color = new Color(0.2f, 0.35f, 0.5f, 0.5f);
-            GUI.DrawTexture(new Rect(dialX, dialY, dialSize, dialSize), circleTex);
-            GUI.color = new Color(0.5f, 0.75f, 1.0f, 0.7f);
-            GUI.DrawTexture(new Rect(dialX + 8, dialY + 8, dialSize - 16, dialSize - 16), ringTex);
-            GUI.color = Color.white;
-
-            // WASD Letter indicators
+            GUI.DrawTexture(new Rect(x, y, barW, barH), darkBoxTex);
             badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(dcx - 10, dialY + 10, 20, 16), "W", badgeStyle);
-            GUI.Label(new Rect(dialX + 8, dcy - 8, 16, 16), "A", badgeStyle);
-            GUI.Label(new Rect(dcx - 10, dialY + dialSize - 26, 20, 16), "S", badgeStyle);
-            GUI.Label(new Rect(dialX + dialSize - 24, dcy - 8, 16, 16), "D", badgeStyle);
-
-            // Interactive Joystick Knob moving with WASD axes
-            float inputX = Input.GetAxisRaw("Horizontal");
-            float inputY = Input.GetAxisRaw("Vertical");
-            Vector2 stickOffset = new Vector2(inputX, -inputY) * 22f;
-
-            float stickSize = 36f;
-            GUI.color = new Color(0.85f, 0.92f, 1.0f, 0.85f);
-            GUI.DrawTexture(new Rect(dcx + stickOffset.x - stickSize * 0.5f, dcy + stickOffset.y - stickSize * 0.5f, stickSize, stickSize), circleTex);
-            GUI.color = Color.white;
-
-            // [Tab] Scoreboard Pill below Dial
-            float tabY = dialY + dialSize + 12f;
-            GUI.DrawTexture(new Rect(dialX, tabY, 36, 22), bluePillTex);
-            badgeStyle.fontSize = 10;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(dialX, tabY + 3, 36, 18), "Tab", badgeStyle);
-
-            smallTextStyle.fontSize = 11;
-            smallTextStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(dialX + 42, tabY + 3, 100, 18), "Scoreboard", smallTextStyle);
+            badgeStyle.normal.textColor = new Color(0.75f, 0.88f, 1.0f);
+            GUI.Label(new Rect(x, y + 4, barW, 18), "[WASD] Move  •  [Shift] Sprint  •  [Space] Vault/Jump  •  [Ctrl/C] Slide  •  [F] Tag  •  [Esc] Pause", badgeStyle);
         }
 
         // ==============================================================
@@ -742,7 +731,7 @@ namespace WorldChaseTag.UI
             float barW = 340f;
             float barH = 14f;
             float sx = (sw - barW) * 0.5f;
-            float sy = sh - 48f;
+            float sy = sh - 56f;
 
             // Running Man Icon Pill on left
             float iconSize = 28f;
@@ -763,58 +752,6 @@ namespace WorldChaseTag.UI
             smallTextStyle.fontSize = 10;
             smallTextStyle.normal.textColor = new Color(0.4f, 0.8f, 1.0f);
             GUI.Label(new Rect(sx, sy + barH + 2, barW, 14), "Stamina Bar", smallTextStyle);
-        }
-
-        // ==============================================================
-        // BOTTOM-RIGHT: 3 CIRCULAR ACTION BUTTONS WITH PC KEYCAPS
-        // ==============================================================
-        private void DrawActionButtons(float sw, float sh)
-        {
-            float btnSize = 58f;
-            float spacing = 75f;
-            float startX = sw - (spacing * 3) - 30f;
-            float btnY = sh - 110f;
-
-            // 1. Jump / Vault [Space]
-            DrawCircularActionPill(startX, btnY, btnSize, "🏃", "Jump / Vault", "Space");
-
-            // 2. Slide / Crouch [C / Ctrl]
-            DrawCircularActionPill(startX + spacing, btnY, btnSize, "⛷", "Slide / Crouch", "C / Ctrl");
-
-            // 3. Tag (Chaser) [F] (Open Hand Icon)
-            DrawCircularActionPill(startX + spacing * 2, btnY, btnSize, "✋", "Tag (Chaser)", "F");
-        }
-
-        private void DrawCircularActionPill(float x, float y, float size, string icon, string actionLabel, string keycap)
-        {
-            // Dark circular button backing
-            GUI.color = new Color(0.08f, 0.12f, 0.18f, 0.85f);
-            GUI.DrawTexture(new Rect(x, y, size, size), circleTex);
-            GUI.color = new Color(0.4f, 0.6f, 0.8f, 0.7f);
-            GUI.DrawTexture(new Rect(x, y, size, size), ringTex);
-            GUI.color = Color.white;
-
-            // Center Icon Silhouette
-            badgeStyle.fontSize = 20;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(x, y + 16, size, 26), icon, badgeStyle);
-
-            // Action Label below button
-            smallTextStyle.fontSize = 10;
-            smallTextStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(x - 12, y + size + 4, size + 24, 16), actionLabel, smallTextStyle);
-
-            // PC Keycap Pill below Label
-            float keyW = 48f;
-            float keyH = 18f;
-            float kx = x + (size - keyW) * 0.5f;
-            float ky = y + size + 22;
-
-            GUI.DrawTexture(new Rect(kx, ky, keyW, keyH), darkBoxTex);
-            GUI.DrawTexture(new Rect(kx, ky, keyW, 1), alphaCyanTex);
-            badgeStyle.fontSize = 9;
-            badgeStyle.normal.textColor = new Color(0.85f, 0.95f, 1.0f);
-            GUI.Label(new Rect(kx, ky + 1, keyW, keyH), keycap, badgeStyle);
         }
 
         // ==============================================================
@@ -926,7 +863,7 @@ namespace WorldChaseTag.UI
             smallTextStyle.normal.textColor = isActive ? new Color(0.85f, 0.95f, 1.0f) : new Color(0.6f, 0.7f, 0.8f);
             GUI.Label(new Rect(rect.x + 14, rect.y + 24, rect.width - 28, 16), subText, smallTextStyle);
 
-            bool clicked = Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition);
+            bool clicked = GUI.Button(rect, GUIContent.none, GUIStyle.none);
             if (clicked) WCTAudioSynthesizer.Instance?.PlayUIClick();
             return clicked;
         }

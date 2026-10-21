@@ -118,6 +118,8 @@ namespace WorldChaseTag.Movement
             if (cameraHolder != null)
             {
                 defaultCameraLocalPos = cameraHolder.localPosition;
+                cameraPitch = cameraHolder.localEulerAngles.x;
+                if (cameraPitch > 180f) cameraPitch -= 360f;
 
                 // Ensure First-Person animated parkour arms exist
                 if (cameraHolder.GetComponent<WorldChaseTag.Visuals.WCTFPPArms>() == null)
@@ -131,12 +133,56 @@ namespace WorldChaseTag.Movement
 
         private void Start()
         {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            bool menuOpen = (WorldChaseTag.UI.WCTMenuController.Instance != null && WorldChaseTag.UI.WCTMenuController.Instance.IsMenuOpen);
+            if (menuOpen)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+                ControlsEnabled = false;
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                ControlsEnabled = true;
+            }
         }
 
         private void Update()
         {
+            bool isUIActive = (WorldChaseTag.UI.WCTMenuController.Instance != null && WorldChaseTag.UI.WCTMenuController.Instance.IsMenuOpen) ||
+                             (WorldChaseTag.UI.WCTHUDController.Instance != null && WorldChaseTag.UI.WCTHUDController.Instance.IsPaused) ||
+                             (WorldChaseTag.Core.WCTMatchController.Instance != null && 
+                              (WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.CHASE_RESULT || 
+                               WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.MATCH_RESULT ||
+                               WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.POST_MATCH));
+
+            if (isUIActive)
+            {
+                // UI is active: Cursor is free and visible; Freeze camera & movement
+                if (Cursor.lockState != CursorLockMode.None)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                }
+                if (!Cursor.visible)
+                {
+                    Cursor.visible = true;
+                }
+
+                ApplyGravityOnly();
+                return;
+            }
+
+            // Gameplay is active: Cursor is locked and hidden for FPS camera
+            if (Cursor.lockState != CursorLockMode.Locked)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+            }
+            if (Cursor.visible)
+            {
+                Cursor.visible = false;
+            }
+
             // Update timers
             if (controller.isGrounded)
             {
@@ -152,8 +198,10 @@ namespace WorldChaseTag.Movement
                 jumpBufferTimer -= Time.deltaTime;
             }
 
+            // Camera angle / mouse look ALWAYS works in gameplay!
             HandleMouseLook();
 
+            // When controls are disabled (e.g. 3-2-1 countdown), freeze character movement only
             if (!ControlsEnabled || isVaulting || isMantling)
             {
                 ApplyGravityOnly();
@@ -169,8 +217,6 @@ namespace WorldChaseTag.Movement
 
         private void HandleMouseLook()
         {
-            if (Cursor.lockState != CursorLockMode.Locked) return;
-
             float mouseX = Input.GetAxisRaw("Mouse X") * mouseSensitivity;
             float rawMouseY = Input.GetAxisRaw("Mouse Y") * mouseSensitivity;
 

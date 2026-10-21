@@ -272,6 +272,18 @@ namespace WorldChaseTag.UI
 
         private void Update()
         {
+            if (isMenuOpen)
+            {
+                if (Cursor.lockState != CursorLockMode.None)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                }
+                if (!Cursor.visible)
+                {
+                    Cursor.visible = true;
+                }
+            }
+
             if (currentScreen == MenuScreen.Splash)
             {
                 splashTimer += Time.unscaledDeltaTime;
@@ -281,9 +293,23 @@ namespace WorldChaseTag.UI
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.M))
+            if (Input.GetKeyDown(KeyCode.M) || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                SetMenuOpen(!isMenuOpen);
+                if (isMenuOpen)
+                {
+                    if (currentScreen == MenuScreen.MainMenu)
+                    {
+                        LaunchMatch();
+                    }
+                    else
+                    {
+                        currentScreen = MenuScreen.MainMenu;
+                    }
+                }
+                else
+                {
+                    SetMenuOpen(true);
+                }
             }
         }
 
@@ -507,7 +533,13 @@ namespace WorldChaseTag.UI
             float btnW = 300f;
             float btnH = 46f;
 
-            if (DrawMainMenuNavPill(new Rect(navX, btnY, btnW, btnH), "> PLAY", "Start a match or practice", true))
+            if (DrawMainMenuNavPill(new Rect(navX, btnY, btnW, btnH), "> PLAY NOW", "Launch championship match", true))
+            {
+                LaunchMatch();
+            }
+
+            btnY += btnSpacing;
+            if (DrawMainMenuNavPill(new Rect(navX, btnY, btnW, btnH), "MATCH SETUP", "Configure match options & rules", false))
             {
                 currentScreen = MenuScreen.PreMatchIntro;
             }
@@ -579,7 +611,7 @@ namespace WorldChaseTag.UI
             smallTextStyle.normal.textColor = isPlay ? new Color(0.85f, 0.95f, 1.0f) : new Color(0.6f, 0.7f, 0.8f);
             GUI.Label(new Rect(rect.x + 18, rect.y + 24, rect.width - 30, 16), subText, smallTextStyle);
 
-            bool clicked = Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition);
+            bool clicked = GUI.Button(rect, GUIContent.none, GUIStyle.none);
             if (clicked)
             {
                 WCTAudioSynthesizer.Instance?.PlayUIClick();
@@ -628,7 +660,7 @@ namespace WorldChaseTag.UI
             smallTextStyle.normal.textColor = new Color(0.7f, 0.8f, 0.9f);
             GUI.Label(new Rect(rect.x + 12, rect.y + 32, rect.width - 24, 28), sub, smallTextStyle);
 
-            if (Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition))
+            if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
             {
                 selectedArenaIndex = idx;
                 WCTAudioSynthesizer.Instance?.PlayUIClick();
