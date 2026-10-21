@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "createdAt": "2026-10-21T16:38:49.484Z",
+  "lastUpdated": "2026-10-21T16:38:49.484Z",
+  "currentFocus": "Project initialization & stability",
+  "features": [
+    "Project Foundation & Documentation"
+  ],
+  "bugFixes": [],
+  "conventions": [
+    "Strict clean architecture",
+    "Zero-leakage secret management"
+  ]
+}
