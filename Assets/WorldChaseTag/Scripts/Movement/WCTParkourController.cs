@@ -56,6 +56,15 @@ namespace WorldChaseTag.Movement
         [SerializeField] private float sprintFov = 86f;
         [SerializeField] private float fovTransitionSpeed = 8f;
 
+        [Header("Gyroscope & Mobile Controls")]
+        [SerializeField] private bool enableGyroscope = true;
+        [SerializeField] private float gyroSensitivity = 2.4f;
+
+        // Mobile touch & virtual inputs
+        private Vector2 virtualMoveInput = Vector2.zero;
+        private bool virtualSprint = false;
+        private Vector2 touchLookDelta = Vector2.zero;
+
         // Runtime states
         private CharacterController controller;
         private Vector3 currentVelocity;
@@ -91,12 +100,58 @@ namespace WorldChaseTag.Movement
         }
         public bool ControlsEnabled { get; set; } = true;
         public float StaminaNormalized => currentStamina / maxStamina;
-        public bool IsSprinting => Input.GetKey(KeyCode.LeftShift) && horizontalVelocity.magnitude > walkSpeed + 0.5f && !isExhausted;
+        public bool IsSprinting => (Input.GetKey(KeyCode.LeftShift) || virtualSprint) && horizontalVelocity.magnitude > walkSpeed + 0.5f && !isExhausted;
         public bool IsVaulting => isVaulting;
         public bool IsMantling => isMantling;
         public bool IsCrouching => isCrouching;
         public bool IsSliding => isSliding;
         public Camera PlayerCamera => playerCamera;
+
+        public bool EnableGyroscope
+        {
+            get => enableGyroscope;
+            set
+            {
+                enableGyroscope = value;
+                if (SystemInfo.supportsGyroscope)
+                {
+                    Input.gyro.enabled = value;
+                }
+            }
+        }
+
+        public void SetVirtualJoystick(Vector2 input, bool sprint)
+        {
+            virtualMoveInput = Vector2.ClampMagnitude(input, 1f);
+            virtualSprint = sprint;
+        }
+
+        public void AddTouchLookDelta(Vector2 delta)
+        {
+            touchLookDelta += delta;
+        }
+
+        public void TriggerJump()
+        {
+            jumpBufferTimer = jumpBufferDuration;
+        }
+
+        public void TriggerSlideOrCrouch()
+        {
+            if (IsSprinting && controller.isGrounded && !isSliding)
+            {
+                StartSlide();
+            }
+            else
+            {
+                SetCrouch(!isCrouching);
+            }
+        }
+
+        public void TriggerCatchOrTag()
+        {
+            AttemptTagAction();
+        }
 
         public event Action<string> OnParkourActionTriggered; // "VAULT", "MANTLE", "SLIDE", "TAG_ATTEMPT"
 
@@ -129,10 +184,15 @@ namespace WorldChaseTag.Movement
             }
 
             currentStamina = maxStamina;
+            if (SystemInfo.supportsGyroscope && enableGyroscope)
+            {
+                Input.gyro.enabled = true;
+            }
         }
 
         private void Start()
         {
+#if !UNITY_ANDROID && !UNITY_IOS
             bool menuOpen = (WorldChaseTag.UI.WCTMenuController.Instance != null && WorldChaseTag.UI.WCTMenuController.Instance.IsMenuOpen);
             if (menuOpen)
             {
@@ -146,6 +206,10 @@ namespace WorldChaseTag.Movement
                 Cursor.visible = false;
                 ControlsEnabled = true;
             }
+#else
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+#endif
         }
 
         private void Update()
@@ -158,6 +222,7 @@ namespace WorldChaseTag.Movement
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.MATCH_RESULT ||
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.POST_MATCH));
 
+#if !UNITY_ANDROID && !UNITY_IOS
             if (isUIActive)
             {
                 // UI is active: Cursor is free and visible; Freeze camera & movement
@@ -183,6 +248,13 @@ namespace WorldChaseTag.Movement
             {
                 Cursor.visible = false;
             }
+#else
+            if (isUIActive)
+            {
+                ApplyGravityOnly();
+                return;
+            }
+#endif
 
             // Update timers
             if (controller.isGrounded)
@@ -220,6 +292,27 @@ namespace WorldChaseTag.Movement
         {
             float mouseX = Input.GetAxisRaw("Mouse X") * mouseSensitivity;
             float rawMouseY = Input.GetAxisRaw("Mouse Y") * mouseSensitivity;
+
+            // Touch Swipe Delta on screen
+            if (touchLookDelta.sqrMagnitude > 0.0001f)
+            {
+                mouseX += touchLookDelta.x;
+                rawMouseY += touchLookDelta.y;
+                touchLookDelta = Vector2.zero;
+            }
+
+            // Mobile Gyroscope look (Input.gyro.rotationRateUnbiased)
+            if (enableGyroscope && SystemInfo.supportsGyroscope && Input.gyro.enabled)
+            {
+                Vector3 gyroRate = Input.gyro.rotationRateUnbiased;
+                // gyroRate.x = pitch rate (tilt forward/back)
+                // gyroRate.y = yaw rate (turn left/right)
+                float gyroYaw = -gyroRate.y * Mathf.Rad2Deg * Time.deltaTime * gyroSensitivity;
+                float gyroPitch = -gyroRate.x * Mathf.Rad2Deg * Time.deltaTime * gyroSensitivity;
+
+                mouseX += gyroYaw;
+                rawMouseY += gyroPitch;
+            }
 
             // Horizontal turn (yaw)
             transform.Rotate(Vector3.up * mouseX);
@@ -272,6 +365,16 @@ namespace WorldChaseTag.Movement
         {
             float inputX = Input.GetAxisRaw("Horizontal");
             float inputZ = Input.GetAxisRaw("Vertical");
+
+            // Merge virtual joystick input
+            if (virtualMoveInput.sqrMagnitude > 0.001f)
+            {
+                inputX += virtualMoveInput.x;
+                inputZ += virtualMoveInput.y;
+                inputX = Mathf.Clamp(inputX, -1f, 1f);
+                inputZ = Mathf.Clamp(inputZ, -1f, 1f);
+            }
+
             Vector3 inputDir = (transform.right * inputX + transform.forward * inputZ).normalized;
 
             // Determine target speed
@@ -293,7 +396,7 @@ namespace WorldChaseTag.Movement
                 {
                     targetSpeed = crouchSpeed;
                 }
-                else if (Input.GetKey(KeyCode.LeftShift) && !isExhausted && inputDir.magnitude > 0.1f)
+                else if ((Input.GetKey(KeyCode.LeftShift) || virtualSprint) && !isExhausted && inputDir.magnitude > 0.1f)
                 {
                     targetSpeed = sprintSpeed;
                 }

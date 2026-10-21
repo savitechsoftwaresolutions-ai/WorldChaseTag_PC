@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -98,7 +99,9 @@ namespace WorldChaseTag.Editor
             cam.allowHDR = true;
             cam.allowMSAA = true;
             cam.useOcclusionCulling = true;
-            cam.renderingPath = RenderingPath.DeferredShading;
+            cam.renderingPath = RenderingPath.UsePlayerSettings;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.08f, 0.10f, 0.14f);
             camHolder.AddComponent<AudioListener>();
 
             // Add First-Person Animated Parkour Hands & Arms
@@ -109,7 +112,6 @@ namespace WorldChaseTag.Editor
             // 4. Create AI Opponent with High-Visibility 3D Athlete Visuals
             GameObject aiObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             aiObj.name = "AI_Opponent_Athlete";
-            aiObj.tag = "Evader";
             aiObj.transform.position = new Vector3(0f, 0.9f, 3.2f);
             Object.DestroyImmediate(aiObj.GetComponent<Collider>());
 
@@ -201,6 +203,81 @@ namespace WorldChaseTag.Editor
             else
             {
                 Debug.LogError($"================ BUILD FAILED ================\nResult: {summary.result}\nTotal errors: {summary.totalErrors}");
+                if (Application.isBatchMode)
+                {
+                    EditorApplication.Exit(1);
+                }
+            }
+        }
+
+        [MenuItem("World Chase Tag/Build Android APK")]
+        public static void BuildAndroidAPK()
+        {
+            Debug.Log("[WCTSceneBuilder] Preparing official Android APK Build for World Chase Tag...");
+
+            // 1. Ensure scene exists and is built
+            BuildMainScene();
+
+            // 2. Set Android SDK, NDK, and JDK roots in EditorPrefs
+            string sdkRoot = @"C:\Program Files\Unity\Hub\Editor\6000.5.6f1\Editor\Data\PlaybackEngines\AndroidPlayer\SDK";
+            string ndkRoot = @"C:\Program Files\Unity\Hub\Editor\6000.5.6f1\Editor\Data\PlaybackEngines\AndroidPlayer\NDK";
+            string jdkRoot = @"C:\Program Files\Unity\Hub\Editor\6000.5.6f1\Editor\Data\PlaybackEngines\AndroidPlayer\OpenJDK";
+
+            if (System.IO.Directory.Exists(sdkRoot)) EditorPrefs.SetString("AndroidSdkRoot", sdkRoot);
+            if (System.IO.Directory.Exists(ndkRoot)) EditorPrefs.SetString("AndroidNdkRoot", ndkRoot);
+            if (System.IO.Directory.Exists(jdkRoot)) EditorPrefs.SetString("JdkPath", jdkRoot);
+
+            // 3. Android Player Settings
+            PlayerSettings.companyName = "WorldChaseTag";
+            PlayerSettings.productName = "World Chase Tag";
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.worldchasetag.championship");
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel34;
+
+            // Target APK (not App Bundle)
+            EditorUserBuildSettings.buildAppBundle = false;
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+
+            PlayerSettings.Android.optimizedFramePacing = false;
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.X86_64;
+
+            string buildDir = "Builds";
+            if (!System.IO.Directory.Exists(buildDir))
+            {
+                System.IO.Directory.CreateDirectory(buildDir);
+            }
+
+            string apkPath = System.IO.Path.Combine(buildDir, "WorldChaseTag.apk");
+            Debug.Log($"[WCTSceneBuilder] Starting Android APK build to: {apkPath}");
+
+            BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
+            {
+                scenes = new string[] { "Assets/WorldChaseTag/Scenes/MainArena.unity" },
+                locationPathName = apkPath,
+                target = BuildTarget.Android,
+                options = BuildOptions.None
+            };
+
+            UnityEditor.Build.Reporting.BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+            UnityEditor.Build.Reporting.BuildSummary summary = report.summary;
+
+            if (summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                Debug.Log($"================ ANDROID BUILD SUCCEEDED ================\nTotal size: {summary.totalSize} bytes\nOutput: {apkPath}");
+                if (Application.isBatchMode)
+                {
+                    EditorApplication.Exit(0);
+                }
+            }
+            else
+            {
+                Debug.LogError($"================ ANDROID BUILD FAILED ================\nResult: {summary.result}\nTotal errors: {summary.totalErrors}");
                 if (Application.isBatchMode)
                 {
                     EditorApplication.Exit(1);

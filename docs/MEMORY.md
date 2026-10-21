@@ -67,6 +67,24 @@
   4. Updated `WCTHUDController.cs` with pixel-perfect recreation of the reference screenshot HUD: WCT globe logo, "ALPHA (3/4)" card with crown and athlete rows, top broadcast trapezoid score bar, top-right arena title and blueprint minimap with `[+]` zoom button, bottom-left vertical WASD key pills, bottom-center stamina bar, and bottom-right circular esports action badges.
 - **Files Affected:** `Assets/WorldChaseTag/Scripts/Visuals/WCTFPPArms.cs`, `Assets/WorldChaseTag/Scripts/Visuals/WCTAthleteVisuals.cs`, `Assets/WorldChaseTag/Scripts/Visuals/WCTMaterialPalette.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`
 
+#### [BUG-004]: Mobile Touch Controls, Gyroscope Aiming & Android Compilation Pipeline
+- **Error Signature:** Missing virtual joystick, touch catch/tag button, and mobile gyroscope look; `error CS0103: The name 'NamedBuildTarget' does not exist in the current context` during batchmode Android build.
+- **Root Cause:** 
+  1. Input system was solely wired to keyboard and desktop mouse lock (`Cursor.lockState = CursorLockMode.Locked`).
+  2. `WCTSceneBuilder.cs` referenced `NamedBuildTarget` without `using UnityEditor.Build;`.
+- **Permanent Fix:**
+  1. Added `using UnityEditor.Build;` and configured `PlayerSettings` for Android ARM64 IL2CPP.
+  2. Implemented dynamic virtual joystick on bottom-left with outer sprint ring in `WCTHUDController.cs` forwarding to `WCTParkourController.SetVirtualJoystick()`.
+  3. Implemented interactive touch action buttons on bottom-right with large highlighted Catch / Tag button triggering `TriggerCatchOrTag()`.
+  4. Enabled hardware gyroscope tracking (`Input.gyro.rotationRateUnbiased`) for tilt look and swipe gesture aiming in `WCTParkourController.cs` with an on-screen `[📱 GYRO: ON/OFF]` toggle button.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Editor/WCTSceneBuilder.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`
+
+#### [BUG-005]: Unhandled UnityException: Tag: Chaser / Tag: Evader is not defined
+- **Error Signature:** `UnityException: Tag: Chaser is not defined. UnityEngine.GameObject.set_tag(String) in WCTSceneCoordinator.SetupChaseActors`. Game frozen on dark screen during match start.
+- **Root Cause:** Attempted to assign `gameObject.tag = "Chaser"` and `"Evader"` at runtime, but these custom tags were not registered in `TagManager.asset`. Role tracking was already cleanly managed by `CurrentRole` (`ChaseRole`).
+- **Permanent Fix:** Removed invalid runtime `.tag` assignments in `WCTSceneCoordinator.cs`.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Core/WCTSceneCoordinator.cs`
+
 ---
 
 ## 3. Architecture Decisions & Inviolable Conventions

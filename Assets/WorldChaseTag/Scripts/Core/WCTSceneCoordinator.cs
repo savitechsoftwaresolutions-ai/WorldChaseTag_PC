@@ -203,7 +203,6 @@ namespace WorldChaseTag.Core
         {
             GameObject ai = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             ai.name = "WCT_AIOpponent";
-            ai.tag = "Evader";
             ai.transform.position = position;
 
             Collider col = ai.GetComponent<Collider>();
@@ -234,11 +233,9 @@ namespace WorldChaseTag.Core
             if (isPlayerEvader)
             {
                 // Player is Evader
-                playerActor.gameObject.tag = "Evader";
                 playerActor.CurrentRole = ChaseRole.Evader;
                 playerActor.TeleportTo(evaderPos, Quaternion.Euler(0f, 180f, 0f));
 
-                aiActorObject.tag = "Chaser";
                 aiChaser.IsActiveChaser = true;
                 aiEvader.IsActiveEvader = false;
                 aiChaser.SetTarget(playerActor.transform);
@@ -249,11 +246,9 @@ namespace WorldChaseTag.Core
             else
             {
                 // Player is Chaser
-                playerActor.gameObject.tag = "Chaser";
                 playerActor.CurrentRole = ChaseRole.Chaser;
                 playerActor.TeleportTo(chaserPos, Quaternion.identity);
 
-                aiActorObject.tag = "Evader";
                 aiChaser.IsActiveChaser = false;
                 aiEvader.IsActiveEvader = true;
                 aiEvader.SetChaser(playerActor.transform);

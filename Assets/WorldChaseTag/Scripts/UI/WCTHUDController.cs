@@ -66,6 +66,13 @@ namespace WorldChaseTag.UI
         private Texture2D ringTex;
         private Texture2D semiDarkTex;
 
+        // Mobile touch & virtual controls
+        private int joystickFingerId = -1;
+        private Vector2 joystickPos = Vector2.zero;
+        private bool isMouseDraggingJoy = false;
+        private int swipeLookFingerId = -1;
+        private Vector2 lastSwipePos = Vector2.zero;
+
         private void Awake()
         {
             if (Instance == null)
@@ -205,6 +212,129 @@ namespace WorldChaseTag.UI
             if (bannerAlpha > 0f)
             {
                 bannerAlpha -= Time.deltaTime * 0.4f;
+            }
+
+            if (!isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
+            {
+                UpdateMobileTouchInput();
+            }
+        }
+
+        private void UpdateMobileTouchInput()
+        {
+            if (playerController == null)
+            {
+                playerController = FindAnyObjectByType<WCTParkourController>();
+                if (playerController == null) return;
+            }
+
+            float sw = Screen.width;
+            float sh = Screen.height;
+            float joyRadius = 60f;
+            Vector2 joyCenter = new Vector2(115f, sh - 115f);
+
+            if (Input.touchCount > 0)
+            {
+                for (int i = 0; i < Input.touchCount; i++)
+                {
+                    Touch touch = Input.GetTouch(i);
+                    Vector2 screenPos = touch.position;
+                    Vector2 guiPos = new Vector2(screenPos.x, sh - screenPos.y);
+
+                    // Left touch zone: Virtual Joystick
+                    if (guiPos.x < sw * 0.45f && guiPos.y > sh * 0.35f)
+                    {
+                        if (touch.phase == TouchPhase.Began && joystickFingerId == -1)
+                        {
+                            joystickFingerId = touch.fingerId;
+                        }
+                    }
+
+                    if (touch.fingerId == joystickFingerId)
+                    {
+                        if (touch.phase == TouchPhase.Moved || touch.phase == TouchPhase.Stationary)
+                        {
+                            Vector2 offset = guiPos - joyCenter;
+                            float dist = offset.magnitude;
+                            Vector2 dir = dist > 0.001f ? offset.normalized : Vector2.zero;
+                            float clampedDist = Mathf.Min(dist, joyRadius);
+                            joystickPos = joyCenter + dir * clampedDist;
+
+                            Vector2 moveInput = new Vector2(offset.x / joyRadius, -offset.y / joyRadius);
+                            bool sprint = dist > (joyRadius * 0.75f);
+                            playerController.SetVirtualJoystick(moveInput, sprint);
+                        }
+                        else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                        {
+                            joystickFingerId = -1;
+                            joystickPos = joyCenter;
+                            playerController.SetVirtualJoystick(Vector2.zero, false);
+                        }
+                    }
+                    // Right touch zone: Swipe Look (excluding bottom right buttons area)
+                    else if (guiPos.x > sw * 0.45f && guiPos.y < sh * 0.72f)
+                    {
+                        if (touch.phase == TouchPhase.Began && swipeLookFingerId == -1)
+                        {
+                            swipeLookFingerId = touch.fingerId;
+                            lastSwipePos = touch.position;
+                        }
+                        else if (touch.fingerId == swipeLookFingerId)
+                        {
+                            if (touch.phase == TouchPhase.Moved)
+                            {
+                                Vector2 delta = (touch.position - lastSwipePos) * 0.15f;
+                                playerController.AddTouchLookDelta(new Vector2(delta.x, delta.y));
+                                lastSwipePos = touch.position;
+                            }
+                            else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                            {
+                                swipeLookFingerId = -1;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Editor / PC Mouse fallback for testing joystick!
+                if (Input.GetMouseButtonDown(0))
+                {
+                    Vector2 mousePos = Input.mousePosition;
+                    Vector2 guiPos = new Vector2(mousePos.x, sh - mousePos.y);
+                    if (Vector2.Distance(guiPos, joyCenter) < joyRadius * 1.5f)
+                    {
+                        isMouseDraggingJoy = true;
+                    }
+                }
+
+                if (isMouseDraggingJoy)
+                {
+                    if (Input.GetMouseButton(0))
+                    {
+                        Vector2 mousePos = Input.mousePosition;
+                        Vector2 guiPos = new Vector2(mousePos.x, sh - mousePos.y);
+                        Vector2 offset = guiPos - joyCenter;
+                        float dist = offset.magnitude;
+                        Vector2 dir = dist > 0.001f ? offset.normalized : Vector2.zero;
+                        float clampedDist = Mathf.Min(dist, joyRadius);
+                        joystickPos = joyCenter + dir * clampedDist;
+
+                        Vector2 moveInput = new Vector2(offset.x / joyRadius, -offset.y / joyRadius);
+                        bool sprint = dist > (joyRadius * 0.75f);
+                        playerController.SetVirtualJoystick(moveInput, sprint);
+                    }
+                    else
+                    {
+                        isMouseDraggingJoy = false;
+                        joystickPos = joyCenter;
+                        playerController.SetVirtualJoystick(Vector2.zero, false);
+                    }
+                }
+                else if (joystickFingerId == -1)
+                {
+                    joystickPos = joyCenter;
+                }
             }
         }
 
@@ -419,11 +549,14 @@ namespace WorldChaseTag.UI
                     DrawStaminaMeter(sw, sh);
                 }
 
-                // Bottom-Left: WASD Key Badges (Matching Screenshot!)
-                DrawBottomLeftWASDKeybinds(sw, sh);
+                // Bottom-Left: Virtual On-Screen Joystick & WASD movement disc
+                DrawVirtualJoystickAndMovement(sw, sh);
 
-                // Bottom-Right: Esports Action Badges (Jump, Slide, Tag - Matching Screenshot!)
+                // Bottom-Right: Esports Action Badges (Jump, Slide, Catch/Tag)
                 DrawBottomRightActionButtons(sw, sh);
+
+                // Top: Gyroscope Status & Toggle Button
+                DrawGyroscopeToggle(sw);
             }
 
             // Center Countdown / Announcement Banner (3, 2, 1, GO!, EVADED, TAGGED)
@@ -712,37 +845,48 @@ namespace WorldChaseTag.UI
         }
 
         // ==============================================================
-        // BOTTOM-LEFT: WASD KEYCAPS (Matching Screenshot!)
+        // BOTTOM-LEFT: VIRTUAL JOYSTICK & MOVEMENT DISC
         // ==============================================================
-        private void DrawBottomLeftWASDKeybinds(float sw, float sh)
+        private void DrawVirtualJoystickAndMovement(float sw, float sh)
         {
-            float startX = 22f;
-            float startY = sh - 120f;
-            float keySize = 22f;
-            float rowSpacing = 26f;
+            float joyRadius = 60f;
+            Vector2 joyCenter = new Vector2(115f, sh - 115f);
+            float joyDiameter = joyRadius * 2f;
 
-            string[] keys = { "W", "A", "S", "D" };
-            string[] labels = { "Forward", "Left", "Backward", "Right" };
+            // Base circular track
+            GUI.color = new Color(0.04f, 0.08f, 0.14f, 0.85f);
+            GUI.DrawTexture(new Rect(joyCenter.x - joyRadius, joyCenter.y - joyRadius, joyDiameter, joyDiameter), circleTex);
+            GUI.color = new Color(0.15f, 0.75f, 0.98f, 0.85f);
+            GUI.DrawTexture(new Rect(joyCenter.x - joyRadius, joyCenter.y - joyRadius, joyDiameter, joyDiameter), ringTex);
 
-            for (int i = 0; i < 4; i++)
-            {
-                float y = startY + i * rowSpacing;
+            // Cardinal direction chevrons
+            badgeStyle.fontSize = 13;
+            badgeStyle.normal.textColor = new Color(0.6f, 0.85f, 1f, 0.85f);
+            GUI.Label(new Rect(joyCenter.x - 10, joyCenter.y - joyRadius + 4, 20, 20), "▲", badgeStyle);
+            GUI.Label(new Rect(joyCenter.x - 10, joyCenter.y + joyRadius - 22, 20, 20), "▼", badgeStyle);
+            GUI.Label(new Rect(joyCenter.x - joyRadius + 4, joyCenter.y - 10, 20, 20), "◀", badgeStyle);
+            GUI.Label(new Rect(joyCenter.x + joyRadius - 22, joyCenter.y - 10, 20, 20), "▶", badgeStyle);
 
-                // Dark rounded keycap
-                GUI.DrawTexture(new Rect(startX, y, keySize, keySize), darkBoxTex);
-                GUI.DrawTexture(new Rect(startX, y, keySize, 1), semiDarkTex);
+            // Thumb Knob
+            Vector2 knobPos = (joystickPos.sqrMagnitude > 1f) ? joystickPos : joyCenter;
+            float knobRadius = 26f;
+            float knobDiameter = knobRadius * 2f;
 
-                badgeStyle.fontSize = 11;
-                badgeStyle.fontStyle = FontStyle.Bold;
-                badgeStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(startX, y + 2, keySize, keySize), keys[i], badgeStyle);
+            GUI.color = new Color(0.1f, 0.5f, 0.85f, 0.95f);
+            GUI.DrawTexture(new Rect(knobPos.x - knobRadius, knobPos.y - knobRadius, knobDiameter, knobDiameter), circleTex);
+            GUI.color = Color.white;
+            GUI.DrawTexture(new Rect(knobPos.x - knobRadius, knobPos.y - knobRadius, knobDiameter, knobDiameter), ringTex);
+            badgeStyle.fontSize = 11;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(knobPos.x - 12, knobPos.y - 10, 24, 20), "🕹", badgeStyle);
 
-                // Action label next to keycap
-                smallTextStyle.fontSize = 11;
-                smallTextStyle.fontStyle = FontStyle.Normal;
-                smallTextStyle.normal.textColor = new Color(0.85f, 0.90f, 0.95f);
-                GUI.Label(new Rect(startX + keySize + 8, y + 3, 75, 18), labels[i], smallTextStyle);
-            }
+            // Label below
+            smallTextStyle.fontSize = 10;
+            smallTextStyle.alignment = TextAnchor.MiddleCenter;
+            smallTextStyle.normal.textColor = new Color(0.7f, 0.88f, 1f);
+            GUI.Label(new Rect(joyCenter.x - 65, joyCenter.y + joyRadius + 4, 130, 16), "JOYSTICK / SPRINT", smallTextStyle);
+            smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            GUI.color = Color.white;
         }
 
         // ==============================================================
@@ -778,51 +922,117 @@ namespace WorldChaseTag.UI
         }
 
         // ==============================================================
-        // BOTTOM-RIGHT: ESPORTS ACTION BADGES (Matching Screenshot!)
+        // BOTTOM-RIGHT: ESPORTS ACTION BUTTONS (Touch & Click Enabled)
         // ==============================================================
         private void DrawBottomRightActionButtons(float sw, float sh)
         {
-            float circleSize = 58f;
-            float spacing = 72f;
-            float rightX = sw - (spacing * 3) - 20f;
-            float actionY = sh - 95f;
+            float spacing = 86f;
+            float rightX = sw - (spacing * 3) - 25f;
+            float actionY = sh - 110f;
 
-            // 1. Jump / Vault [Space]
-            DrawEsportsActionBadge(rightX, actionY, circleSize, "🏃", "Jump / Vault", "Space");
+            // 1. Jump / Vault Button
+            float jumpSize = 64f;
+            if (DrawInteractiveActionButton(rightX, actionY + 6, jumpSize, "🏃", "JUMP / VAULT", "Space / Tap", new Color(0.12f, 0.45f, 0.85f)))
+            {
+                if (playerController != null) playerController.TriggerJump();
+            }
 
-            // 2. Slide / Crouch [C / Ctrl]
-            DrawEsportsActionBadge(rightX + spacing, actionY, circleSize, "🤸", "Slide / Crouch", "C / Ctrl");
+            // 2. Slide / Crouch Button
+            float slideSize = 64f;
+            if (DrawInteractiveActionButton(rightX + spacing, actionY + 6, slideSize, "🤸", "SLIDE / DUCK", "C / Ctrl", new Color(0.2f, 0.7f, 0.6f)))
+            {
+                if (playerController != null) playerController.TriggerSlideOrCrouch();
+            }
 
-            // 3. Tag (Chaser) [F]
-            DrawEsportsActionBadge(rightX + spacing * 2, actionY, circleSize, "✋", "Tag (Chaser)", "F");
+            // 3. Catch / Tag Action Button (Larger, High-Priority, Vibrant Orange)
+            float tagSize = 76f;
+            if (DrawInteractiveActionButton(rightX + spacing * 2 - 4, actionY - 2, tagSize, "✋", "CATCH / TAG", "F / Tap", new Color(0.96f, 0.38f, 0.08f), true))
+            {
+                if (playerController != null) playerController.TriggerCatchOrTag();
+            }
         }
 
-        private void DrawEsportsActionBadge(float x, float y, float size, string icon, string actionLabel, string keybind)
+        private bool DrawInteractiveActionButton(float x, float y, float size, string icon, string actionLabel, string subLabel, Color accentCol, bool isHighlight = false)
         {
-            // Dark circular action badge with white perimeter ring
-            GUI.color = new Color(0.04f, 0.07f, 0.12f, 0.85f);
-            GUI.DrawTexture(new Rect(x, y, size, size), circleTex);
-            GUI.color = new Color(0.85f, 0.90f, 0.95f, 0.90f);
-            GUI.DrawTexture(new Rect(x, y, size, size), ringTex);
+            Rect btnRect = new Rect(x, y, size, size);
+            bool clicked = false;
+
+            // Draw circular background
+            GUI.color = isHighlight ? new Color(0.25f, 0.1f, 0.05f, 0.95f) : new Color(0.04f, 0.08f, 0.14f, 0.88f);
+            GUI.DrawTexture(btnRect, circleTex);
+
+            // Ring border
+            GUI.color = accentCol;
+            GUI.DrawTexture(btnRect, ringTex);
+
+            if (isHighlight)
+            {
+                // Pulsing outer halo for Catch/Tag button
+                float pulse = (Mathf.Sin(Time.time * 8f) + 1f) * 0.5f;
+                GUI.color = new Color(accentCol.r, accentCol.g, accentCol.b, 0.3f + pulse * 0.4f);
+                GUI.DrawTexture(new Rect(x - 4, y - 4, size + 8, size + 8), ringTex);
+            }
 
             // Icon
-            badgeStyle.fontSize = 20;
+            badgeStyle.fontSize = (int)(size * 0.38f);
             badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(x, y + 14, size, 28), icon, badgeStyle);
+            GUI.Label(new Rect(x, y + size * 0.22f, size, size * 0.45f), icon, badgeStyle);
             GUI.color = Color.white;
 
             // Action name below badge
             smallTextStyle.fontSize = 10;
+            smallTextStyle.fontStyle = FontStyle.Bold;
             smallTextStyle.alignment = TextAnchor.MiddleCenter;
-            smallTextStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(x - 15, y + size + 2, size + 30, 14), actionLabel, smallTextStyle);
+            smallTextStyle.normal.textColor = isHighlight ? new Color(1.0f, 0.7f, 0.4f) : Color.white;
+            GUI.Label(new Rect(x - 20, y + size + 2, size + 40, 14), actionLabel, smallTextStyle);
 
-            // Keycap string below
-            badgeStyle.fontSize = 10;
-            badgeStyle.fontStyle = FontStyle.Bold;
+            // Sub-label below
+            badgeStyle.fontSize = 9;
+            badgeStyle.fontStyle = FontStyle.Normal;
             badgeStyle.normal.textColor = new Color(0.7f, 0.85f, 1.0f);
-            GUI.Label(new Rect(x - 15, y + size + 16, size + 30, 14), keybind, badgeStyle);
+            GUI.Label(new Rect(x - 20, y + size + 16, size + 40, 14), subLabel, badgeStyle);
             smallTextStyle.alignment = TextAnchor.MiddleLeft;
+
+            // Interactive Click / Tap
+            if (GUI.Button(btnRect, GUIContent.none, GUIStyle.none))
+            {
+                clicked = true;
+            }
+
+            return clicked;
+        }
+
+        // ==============================================================
+        // GYROSCOPE HUD TOGGLE & INDICATOR
+        // ==============================================================
+        private void DrawGyroscopeToggle(float sw)
+        {
+            float btnW = 120f;
+            float btnH = 26f;
+            float btnX = sw - btnW - 225f;
+            float btnY = 12f;
+
+            bool gyroOn = (playerController != null && playerController.EnableGyroscope);
+            Color gyroCol = gyroOn ? new Color(0.1f, 0.85f, 0.45f) : new Color(0.6f, 0.6f, 0.6f);
+
+            GUI.color = new Color(0.04f, 0.08f, 0.14f, 0.85f);
+            GUI.DrawTexture(new Rect(btnX, btnY, btnW, btnH), darkBoxTex);
+            GUI.color = gyroCol;
+            GUI.DrawTexture(new Rect(btnX, btnY, btnW, 2f), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
+            badgeStyle.fontSize = 11;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = gyroCol;
+            string gyroText = gyroOn ? "📱 GYRO: ON" : "📱 GYRO: OFF";
+
+            if (GUI.Button(new Rect(btnX, btnY, btnW, btnH), gyroText, badgeStyle))
+            {
+                if (playerController != null)
+                {
+                    playerController.EnableGyroscope = !playerController.EnableGyroscope;
+                }
+            }
         }
 
         // ==============================================================
