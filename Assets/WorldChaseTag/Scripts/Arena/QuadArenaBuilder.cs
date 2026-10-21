@@ -70,21 +70,29 @@ namespace WorldChaseTag.Arena
             // 5. Central Mountain Obstacle (Stepped platform with vault ledges & ramp)
             CreateMountainObstacle(new Vector3(0f, 0f, 0f));
 
-            // 6. Low Vault Hurdles (Black industrial steel rails with pipe fittings)
+            // 6. Angled Vault Ramp (Matching Screenshot on right!)
+            CreateAngledVaultRamp(new Vector3(3.4f, 0f, 0.4f), 0f);
+
+            // 7. Foreground Player Starting Platform & Side Rails (Matching Screenshot perspective!)
+            CreatePaddedObstacleBlock("Foreground_Starting_Platform", new Vector3(0f, 0f, -4.15f), new Vector3(1.8f, 0.82f, 1.2f));
+            CreateVaultHurdle(new Vector3(-1.05f, 0f, -4.15f), 90f);
+            CreateVaultHurdle(new Vector3(1.05f, 0f, -4.15f), 90f);
+
+            // 8. Low Vault Hurdles (Black industrial steel rails with pipe fittings)
             CreateVaultHurdle(new Vector3(-3.2f, 0f, 1.8f), 0f);
-            CreateVaultHurdle(new Vector3(3.2f, 0f, -1.8f), 0f);
+            CreateVaultHurdle(new Vector3(3.2f, 0f, -2.4f), 0f);
             CreateVaultHurdle(new Vector3(-2.8f, 0f, -3.2f), 90f);
             CreateVaultHurdle(new Vector3(2.8f, 0f, 3.2f), 90f);
 
-            // 7. High Mantle Blocks (Corner platforms at 1.6m height with top pads)
+            // 9. High Mantle Blocks (Corner platforms at 1.6m height with blue trim)
             CreatePaddedObstacleBlock("CornerMantle_NorthWest", new Vector3(-3.8f, 0f, 3.8f), new Vector3(2.2f, 1.6f, 1.8f));
             CreatePaddedObstacleBlock("CornerMantle_SouthEast", new Vector3(3.8f, 0f, -3.8f), new Vector3(2.2f, 1.6f, 1.8f));
 
-            // 8. Side Obstacle Blocks (Choke points)
+            // 10. Side Obstacle Blocks (Choke points)
             CreatePaddedObstacleBlock("ChokeBlock_West", new Vector3(-3.8f, 0f, -0.5f), new Vector3(1.6f, 1.1f, 2.4f));
             CreatePaddedObstacleBlock("ChokeBlock_East", new Vector3(3.8f, 0f, 0.5f), new Vector3(1.6f, 1.1f, 2.4f));
 
-            // 9. Overhead Suspended Steel Truss Rig & Stadium Spotlights
+            // 11. Overhead Suspended Steel Truss Rig & Stadium Spotlights
             CreateOverheadTrussAndLighting();
 
             // 10. Outer Stadium Seating Backdrop
@@ -139,17 +147,50 @@ namespace WorldChaseTag.Arena
             // Lower base step (0.75m high, 3.4m x 2.6m)
             CreateCompositeBlock(mountain.transform, "Mountain_BaseStep", new Vector3(0f, 0.375f, 0f), new Vector3(3.4f, 0.75f, 2.6f));
 
-            // Upper tier (1.5m high, 2.0m x 1.6m)
-            CreateCompositeBlock(mountain.transform, "Mountain_TopTier", new Vector3(0f, 1.125f, 0f), new Vector3(2.0f, 0.75f, 1.6f));
+            // Upper tier (1.4m high, 2.0m x 1.6m)
+            CreateCompositeBlock(mountain.transform, "Mountain_TopTier", new Vector3(0f, 1.075f, 0f), new Vector3(2.0f, 0.65f, 1.6f));
+        }
 
-            // Angled balance ramp
-            GameObject ramp = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            ramp.name = "Mountain_Ramp";
-            ramp.transform.parent = mountain.transform;
-            ramp.transform.localPosition = new Vector3(1.8f, 0.35f, 0f);
-            ramp.transform.localRotation = Quaternion.Euler(0f, 0f, 22f);
-            ramp.transform.localScale = new Vector3(1.4f, 0.15f, 1.2f);
-            ApplyMaterial(ramp, WCTMaterialPalette.GetWhitePadMaterial());
+        private void CreateAngledVaultRamp(Vector3 pos, float yRotation)
+        {
+            GameObject rampRoot = new GameObject("Angled_Vault_Ramp");
+            rampRoot.transform.parent = transform;
+            rampRoot.transform.localPosition = pos;
+            rampRoot.transform.localRotation = Quaternion.Euler(0f, yRotation, 0f);
+
+            Material vinylMat = WCTMaterialPalette.GetPaddedVinylMaterial();
+            Material blueTrimMat = WCTMaterialPalette.GetObstacleBlueTrimMaterial();
+            Material rampPlateMat = WCTMaterialPalette.GetWhitePadMaterial();
+            Material pipeMat = WCTMaterialPalette.GetBlackSteelPipeMaterial();
+
+            // Elevated Landing Platform (Top of ramp)
+            CreateCompositeBlock(rampRoot.transform, "Ramp_LandingPlatform", new Vector3(0f, 0.65f, 1.6f), new Vector3(2.2f, 1.3f, 1.8f));
+
+            // Angled Incline Surface (matching Screenshot on right!)
+            GameObject incline = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            incline.name = "Incline_Board";
+            incline.transform.parent = rampRoot.transform;
+            incline.transform.localPosition = new Vector3(0f, 0.65f, -0.4f);
+            incline.transform.localRotation = Quaternion.Euler(-24f, 0f, 0f);
+            incline.transform.localScale = new Vector3(1.8f, 0.14f, 2.8f);
+            ApplyMaterial(incline, rampPlateMat);
+
+            // Blue Guide Rails along sides of ramp
+            float[] railX = { -0.92f, 0.92f };
+            foreach (float rx in railX)
+            {
+                GameObject sideTrim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                sideTrim.name = "Ramp_SideTrim";
+                sideTrim.transform.parent = incline.transform;
+                sideTrim.transform.localPosition = new Vector3(rx / 1.8f, 0.45f, 0f);
+                sideTrim.transform.localScale = new Vector3(0.06f, 0.8f, 1.02f);
+                DestroyImmediate(sideTrim.GetComponent<Collider>());
+                ApplyMaterial(sideTrim, blueTrimMat);
+            }
+
+            // Steel Support Stanchions under ramp
+            CreatePipeStanchion(rampRoot.transform, "Ramp_SupportL", new Vector3(-0.85f, 0.35f, -0.4f), 0.70f, pipeMat);
+            CreatePipeStanchion(rampRoot.transform, "Ramp_SupportR", new Vector3(0.85f, 0.35f, -0.4f), 0.70f, pipeMat);
         }
 
         private void CreatePaddedObstacleBlock(string name, Vector3 pos, Vector3 size)
@@ -171,17 +212,53 @@ namespace WorldChaseTag.Arena
             body.transform.localScale = size;
             ApplyMaterial(body, WCTMaterialPalette.GetPaddedVinylMaterial());
 
-            // Non-slip top landing pad
+            // Non-slip dark/grey top landing pad
             GameObject topPad = GameObject.CreatePrimitive(PrimitiveType.Cube);
             topPad.name = name + "_TopPad";
             topPad.transform.parent = body.transform;
             topPad.transform.localPosition = new Vector3(0f, 0.505f, 0f);
             topPad.transform.localScale = new Vector3(0.96f, 0.04f, 0.96f);
             DestroyImmediate(topPad.GetComponent<Collider>());
-            ApplyMaterial(topPad, WCTMaterialPalette.GetWhitePadMaterial());
+            ApplyMaterial(topPad, WCTMaterialPalette.GetPaddedVinylMaterial());
 
-            // Steel corner protective angle trims
+            // Electric Blue Edge Trim Lines (Matching Screenshot!)
+            CreateBlueEdgeTrims(body.transform, size);
+
+            // Steel corner protective angle brackets
             CreateCornerTrims(body.transform);
+        }
+
+        private void CreateBlueEdgeTrims(Transform body, Vector3 size)
+        {
+            Material blueTrimMat = WCTMaterialPalette.GetObstacleBlueTrimMaterial();
+            float trimThick = 0.045f;
+
+            // 4 Top perimeter edges
+            // North & South Top Edges
+            float[] zSigns = { -0.5f, 0.5f };
+            foreach (float zs in zSigns)
+            {
+                GameObject trim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                trim.name = "BlueTrim_TopEdge";
+                trim.transform.parent = body;
+                trim.transform.localPosition = new Vector3(0f, 0.515f, zs * 0.98f);
+                trim.transform.localScale = new Vector3(0.99f, trimThick / size.y, trimThick / size.z);
+                DestroyImmediate(trim.GetComponent<Collider>());
+                ApplyMaterial(trim, blueTrimMat);
+            }
+
+            // East & West Top Edges
+            float[] xSigns = { -0.5f, 0.5f };
+            foreach (float xs in xSigns)
+            {
+                GameObject trim = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                trim.name = "BlueTrim_TopEdge";
+                trim.transform.parent = body;
+                trim.transform.localPosition = new Vector3(xs * 0.98f, 0.515f, 0f);
+                trim.transform.localScale = new Vector3(trimThick / size.x, trimThick / size.y, 0.99f);
+                DestroyImmediate(trim.GetComponent<Collider>());
+                ApplyMaterial(trim, blueTrimMat);
+            }
         }
 
         private void CreateCornerTrims(Transform body)

@@ -406,25 +406,24 @@ namespace WorldChaseTag.UI
 
             if (!isResultShowing)
             {
-                // 3. Top-Left Team Players Card & Current Objective
-                DrawTeamPlayersCard(sw, sh);
-                DrawCurrentObjectiveCard(sw, sh);
+                // Top-Left: Tournament Logo & Team Players Card
+                DrawWCTTournamentLogo(22f, 12f);
+                DrawTeamPlayersCard(22f, 68f);
 
-                // 4. Top-Right Mini Map Card & Status Pills
-                DrawMiniMapCard(sw, sh);
-                DrawStatusPills(sw, sh);
+                // Top-Right: Arena header, Minimap & Current Objective
+                DrawTopRightHeaderAndMinimap(sw, sh);
 
-                // 5. Center-Bottom Stamina Bar
+                // Center-Bottom: Stamina Bar
                 if (showStaminaBar && playerController != null)
                 {
                     DrawStaminaMeter(sw, sh);
                 }
 
-                // 6. Clean PC Controls Legend (Esports PC HUD - no mobile joystick / touch circles)
-                if (showParkourPrompts && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
-                {
-                    DrawPCControlsLegend(sw, sh);
-                }
+                // Bottom-Left: WASD Key Badges (Matching Screenshot!)
+                DrawBottomLeftWASDKeybinds(sw, sh);
+
+                // Bottom-Right: Esports Action Badges (Jump, Slide, Tag - Matching Screenshot!)
+                DrawBottomRightActionButtons(sw, sh);
             }
 
             // Center Countdown / Announcement Banner (3, 2, 1, GO!, EVADED, TAGGED)
@@ -453,39 +452,131 @@ namespace WorldChaseTag.UI
         }
 
         // ==============================================================
-        // TOP BROADCAST SCOREBOARD BAR (Image 6 & Screenshot)
+        // TOP-LEFT: TOURNAMENT LOGO (Wireframe Globe + Title + Subtitle)
+        // ==============================================================
+        private void DrawWCTTournamentLogo(float x, float y)
+        {
+            // Globe Wireframe Icon
+            float globeSize = 34f;
+            GUI.color = new Color(0.85f, 0.92f, 1.0f);
+            GUI.DrawTexture(new Rect(x, y + 2, globeSize, globeSize), ringTex);
+            badgeStyle.fontSize = 18;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x + 5, y + 6, 24, 24), "🌐", badgeStyle);
+
+            // Title & Subtitle
+            headerStyle.fontSize = 16;
+            headerStyle.fontStyle = FontStyle.Bold;
+            headerStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x + globeSize + 8, y, 180, 20), "WORLD", headerStyle);
+
+            headerStyle.normal.textColor = new Color(0.95f, 0.28f, 0.24f);
+            GUI.Label(new Rect(x + globeSize + 70, y, 180, 20), "CHASE TAG", headerStyle);
+
+            smallTextStyle.fontSize = 9;
+            smallTextStyle.fontStyle = FontStyle.Normal;
+            smallTextStyle.normal.textColor = new Color(0.65f, 0.75f, 0.88f);
+            GUI.Label(new Rect(x + globeSize + 8, y + 18, 200, 14), "PARKOUR. TAG. COMPETE.", smallTextStyle);
+            GUI.color = Color.white;
+        }
+
+        // ==============================================================
+        // TOP-LEFT: TEAM PLAYERS CARD ("ALPHA (3/4)")
+        // ==============================================================
+        private void DrawTeamPlayersCard(float cardX, float cardY)
+        {
+            float cardW = 190f;
+            float cardH = 152f;
+
+            // Frosted dark glass container with sleek border
+            GUI.DrawTexture(new Rect(cardX, cardY, cardW, cardH), darkBoxTex);
+            GUI.DrawTexture(new Rect(cardX, cardY, cardW, 2), alphaCyanTex);
+
+            badgeStyle.fontSize = 12;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(cardX + 10, cardY + 6, cardW - 20, 18), "ALPHA (3/4)", badgeStyle);
+
+            string[] names = { "Player01", "RohanK", "VikramS", "AaravP" };
+            float rowH = 25f;
+            float startY = cardY + 28f;
+
+            for (int i = 0; i < 4; i++)
+            {
+                float ry = startY + i * (rowH + 3f);
+                bool isUser = (i == 0);
+
+                if (isUser)
+                {
+                    // Active player cyan highlight
+                    GUI.DrawTexture(new Rect(cardX + 6, ry, cardW - 12, rowH), bluePillTex);
+                }
+                else
+                {
+                    GUI.DrawTexture(new Rect(cardX + 6, ry, cardW - 12, rowH), semiDarkTex);
+                }
+
+                // Mini Avatar Circle
+                GUI.color = isUser ? Color.white : new Color(0.7f, 0.85f, 1.0f);
+                GUI.DrawTexture(new Rect(cardX + 10, ry + 4, 18, 18), circleTex);
+                badgeStyle.fontSize = 10;
+                badgeStyle.normal.textColor = Color.black;
+                GUI.Label(new Rect(cardX + 10, ry + 4, 18, 18), "👤", badgeStyle);
+                GUI.color = Color.white;
+
+                // Athlete Name
+                smallTextStyle.fontSize = 11;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(cardX + 32, ry + 4, 90, 18), names[i], smallTextStyle);
+
+                // User crown icon & cyan underline
+                if (isUser)
+                {
+                    badgeStyle.fontSize = 12;
+                    badgeStyle.normal.textColor = new Color(1.0f, 0.82f, 0.15f);
+                    GUI.Label(new Rect(cardX + cardW - 30, ry + 2, 20, 18), "👑", badgeStyle);
+
+                    GUI.DrawTexture(new Rect(cardX + 6, ry + rowH - 2, cardW - 12, 2), alphaCyanTex);
+                }
+            }
+        }
+
+        // ==============================================================
+        // TOP BROADCAST SCOREBOARD BAR (Matching Screenshot!)
         // ==============================================================
         private void DrawTopBroadcastHeader(float sw)
         {
-            float totalW = 680f;
+            float totalW = 660f;
             float rx = (sw - totalW) * 0.5f;
-
-            // Header Label above Bar
-            smallTextStyle.fontSize = 11;
-            smallTextStyle.normal.textColor = new Color(0.7f, 0.8f, 0.95f);
-            GUI.Label(new Rect(rx, 4f, totalW, 16), "Chase Timer", smallTextStyle);
-
-            float barY = 22f;
+            float barY = 14f;
             float bannerH = 46f;
 
-            // Alpha Team Box (Left)
-            float alphaW = 210f;
-            GUI.DrawTexture(new Rect(rx, barY, alphaW, bannerH), darkBoxTex);
-            GUI.DrawTexture(new Rect(rx, barY, 4f, bannerH), evaderAccentTex);
+            // 1. Alpha Team Box (Left Trapezoid)
+            float alphaW = 200f;
+            GUI.DrawTexture(new Rect(rx, barY, alphaW, bannerH), bluePillTex);
 
-            scoreStyle.fontSize = 18;
-            scoreStyle.normal.textColor = new Color(0.2f, 0.85f, 1.0f);
-            GUI.Label(new Rect(rx + 16, barY + 10, 110, 24), "A  ALPHA", scoreStyle);
-
-            scoreStyle.fontSize = 24;
+            scoreStyle.fontSize = 20;
+            scoreStyle.fontStyle = FontStyle.Bold;
             scoreStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(rx + alphaW - 48, barY + 8, 40, 28), $"{matchController.TeamAScore}", scoreStyle);
+            GUI.Label(new Rect(rx + 16, barY + 10, 110, 26), "▲  ALPHA", scoreStyle);
 
-            // Center Digital Timer Box
-            float timerW = 180f;
-            float timerX = rx + alphaW + 15f;
-            GUI.DrawTexture(new Rect(timerX, barY - 4f, timerW, bannerH + 8f), darkBoxTex);
-            GUI.DrawTexture(new Rect(timerX, barY - 4f, timerW, 2f), evaderAccentTex);
+            scoreStyle.fontSize = 28;
+            scoreStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(rx + alphaW - 45, barY + 6, 36, 32), $"{matchController.TeamAScore}", scoreStyle);
+
+            // 2. Center Digital Timer Capsule
+            float timerW = 160f;
+            float timerX = rx + alphaW + 12f;
+            GUI.DrawTexture(new Rect(timerX, barY - 2f, timerW, bannerH + 4f), darkBoxTex);
+            GUI.DrawTexture(new Rect(timerX, barY - 2f, timerW, 2f), alphaCyanTex);
+
+            string chaseStr = matchController.IsSuddenDeath
+                ? "SUDDEN DEATH"
+                : $"CHASE {matchController.ChaseNumber} / {matchController.MaxChases}";
+
+            badgeStyle.fontSize = 10;
+            badgeStyle.normal.textColor = new Color(0.7f, 0.8f, 0.95f);
+            GUI.Label(new Rect(timerX, barY + 2f, timerW, 14), chaseStr, badgeStyle);
 
             float timeVal = matchController.TimeRemaining;
             if (matchController.State == WCTMatchState.PRE_CHASE)
@@ -509,273 +600,229 @@ namespace WorldChaseTag.UI
             }
 
             timerStyle.fontSize = 26;
+            timerStyle.fontStyle = FontStyle.Bold;
             timerStyle.normal.textColor = timerCol;
-            GUI.Label(new Rect(timerX, barY - 2f, timerW, 30), $"00:{(int)timeVal:00}", timerStyle);
+            GUI.Label(new Rect(timerX, barY + 16f, timerW, 28), $"00:{(int)timeVal:00}", timerStyle);
 
-            string chaseStr = matchController.IsSuddenDeath
-                ? "SUDDEN DEATH"
-                : $"CHASE {matchController.ChaseNumber} / {matchController.MaxChases}";
+            // 3. Omega Team Box (Right Trapezoid)
+            float omegaW = 200f;
+            float omegaX = timerX + timerW + 12f;
+            GUI.DrawTexture(new Rect(omegaX, barY, omegaW, bannerH), alertRedTex);
 
-            badgeStyle.fontSize = 10;
-            badgeStyle.normal.textColor = new Color(0.7f, 0.8f, 0.9f);
-            GUI.Label(new Rect(timerX, barY + 28f, timerW, 16), chaseStr, badgeStyle);
-
-            // Omega Team Box (Right)
-            float omegaW = 210f;
-            float omegaX = timerX + timerW + 15f;
-            GUI.DrawTexture(new Rect(omegaX, barY, omegaW, bannerH), darkBoxTex);
-            GUI.DrawTexture(new Rect(omegaX + omegaW - 4f, barY, 4f, bannerH), chaserAccentTex);
-
-            scoreStyle.fontSize = 24;
+            scoreStyle.fontSize = 28;
             scoreStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(omegaX + 12, barY + 8, 40, 28), $"{matchController.TeamBScore}", scoreStyle);
+            GUI.Label(new Rect(omegaX + 16, barY + 6, 36, 32), $"{matchController.TeamBScore}", scoreStyle);
 
-            scoreStyle.fontSize = 18;
-            scoreStyle.normal.textColor = new Color(1.0f, 0.55f, 0.15f);
-            GUI.Label(new Rect(omegaX + 56, barY + 10, 135, 24), "OMEGA  Ω", scoreStyle);
+            scoreStyle.fontSize = 20;
+            scoreStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(omegaX + 60, barY + 10, 130, 26), "OMEGA  Ω", scoreStyle);
         }
 
         // ==============================================================
-        // TOP-LEFT: TEAM PLAYERS (ALIVE/TAGGED) CARD
+        // TOP-RIGHT: ARENA HEADER, TACTICAL MINIMAP, CURRENT OBJECTIVE
         // ==============================================================
-        private void DrawTeamPlayersCard(float sw, float sh)
+        private void DrawTopRightHeaderAndMinimap(float sw, float sh)
         {
-            float cardX = 22f;
-            float cardY = 22f;
-            float cardW = 220f;
-            float cardH = 160f;
+            float cardW = 190f;
+            float cardX = sw - cardW - 22f;
 
-            GUI.DrawTexture(new Rect(cardX, cardY, cardW, cardH), darkBoxTex);
-            GUI.DrawTexture(new Rect(cardX, cardY, cardW, 2), alphaCyanTex);
+            // 1. Header: "QUAD ARENA (CLASSIC)" + "124 FPS / 32 ms"
+            float headerY = 12f;
+            badgeStyle.fontSize = 11;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(cardX, headerY, 130, 16), "QUAD ARENA (CLASSIC)", badgeStyle);
 
+            smallTextStyle.fontSize = 9;
+            smallTextStyle.normal.textColor = new Color(0.6f, 0.7f, 0.85f);
+            GUI.Label(new Rect(cardX + 130, headerY, 60, 16), "124 FPS\n32 ms", smallTextStyle);
+
+            // 2. Blueprint Tactical Minimap Card
+            float mapY = 32f;
+            float mapH = 145f;
+            GUI.DrawTexture(new Rect(cardX, mapY, cardW, mapH), darkBoxTex);
+            GUI.DrawTexture(new Rect(cardX, mapY, cardW, 2), alphaCyanTex);
+
+            // Grid Background
+            GUI.DrawTexture(new Rect(cardX + 6, mapY + 6, cardW - 12, mapH - 12), panelBgTex);
+
+            float cx = cardX + cardW * 0.5f;
+            float cy = mapY + mapH * 0.5f;
+
+            // Draw Obstacle Blueprints
+            GUI.color = new Color(0.25f, 0.35f, 0.50f, 0.9f);
+            // Central mountain
+            GUI.DrawTexture(new Rect(cx - 20, cy - 14, 40, 28), Texture2D.whiteTexture);
+            // Angled ramp on right
+            GUI.DrawTexture(new Rect(cx + 26, cy - 8, 22, 16), Texture2D.whiteTexture);
+            // Side blocks
+            GUI.DrawTexture(new Rect(cx - 48, cy - 20, 16, 12), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(cx + 32, cy - 35, 16, 12), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
+            // Player Cyan Chevron (Center-South)
+            float px = cx;
+            float py = cy;
+            if (playerController != null)
+            {
+                Vector3 p = playerController.transform.position;
+                px = Mathf.Clamp(cx + (p.x / 12f) * (cardW * 0.40f), cardX + 12, cardX + cardW - 12);
+                py = Mathf.Clamp(cy - (p.z / 12f) * (mapH * 0.40f), mapY + 12, mapY + mapH - 12);
+            }
+            GUI.color = Color.cyan;
+            GUI.DrawTexture(new Rect(px - 5, py - 5, 10, 10), circleTex);
+            GUI.color = Color.white;
+
+            // Opponent Dot (Orange / Red)
+            if (opponentTransform != null)
+            {
+                Vector3 o = opponentTransform.position;
+                float ox = Mathf.Clamp(cx + (o.x / 12f) * (cardW * 0.40f), cardX + 12, cardX + cardW - 12);
+                float oy = Mathf.Clamp(cy - (o.z / 12f) * (mapH * 0.40f), mapY + 12, mapY + mapH - 12);
+                GUI.color = new Color(1.0f, 0.45f, 0.1f);
+                GUI.DrawTexture(new Rect(ox - 4, oy - 4, 8, 8), circleTex);
+                GUI.color = Color.white;
+            }
+
+            // Bottom-Right Zoom [+] Icon
+            GUI.DrawTexture(new Rect(cardX + cardW - 22, mapY + mapH - 22, 16, 16), darkBoxTex);
             badgeStyle.fontSize = 11;
             badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(cardX + 10, cardY + 8, cardW - 20, 18), "Team Players (Alive/Tagged)", badgeStyle);
+            GUI.Label(new Rect(cardX + cardW - 22, mapY + mapH - 22, 16, 16), "+", badgeStyle);
 
-            // 4 Athletes Rows: A1 Player01, A2 RohanK, A3 VikramS, A4 AaravP
-            string[] names = { "Player01", "RohanK", "VikramS", "AaravP" };
-            float rowH = 26f;
-            float startY = cardY + 34f;
+            // 3. Current Objective Card below Minimap
+            float objY = mapY + mapH + 10f;
+            float objH = 46f;
+            GUI.DrawTexture(new Rect(cardX, objY, cardW, objH), darkBoxTex);
 
-            for (int i = 0; i < 4; i++)
-            {
-                float ry = startY + i * (rowH + 4f);
-                bool isActivePlayer = (i == 0); // Player01 is current active user athlete
-
-                if (isActivePlayer)
-                {
-                    GUI.DrawTexture(new Rect(cardX + 6, ry, cardW - 12, rowH), bluePillTex);
-                }
-                else
-                {
-                    GUI.DrawTexture(new Rect(cardX + 6, ry, cardW - 12, rowH), semiDarkTex);
-                }
-
-                // Athlete Code Badge
-                badgeStyle.fontSize = 10;
-                badgeStyle.normal.textColor = isActivePlayer ? Color.cyan : new Color(0.7f, 0.8f, 0.9f);
-                GUI.Label(new Rect(cardX + 10, ry + 4, 22, 18), $"A{i + 1}", badgeStyle);
-
-                // Mini Avatar Circle
-                GUI.DrawTexture(new Rect(cardX + 34, ry + 4, 18, 18), circleTex);
-
-                // Athlete Name
-                smallTextStyle.fontSize = 11;
-                smallTextStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(cardX + 56, ry + 4, 80, 18), names[i], smallTextStyle);
-
-                // Health / Stamina Bar
-                float barW = 60f;
-                float bx = cardX + cardW - barW - 14f;
-                GUI.DrawTexture(new Rect(bx, ry + 9, barW, 8), darkBoxTex);
-                float fill = isActivePlayer ? (playerController != null ? playerController.StaminaNormalized : 1.0f) : 1.0f;
-                GUI.DrawTexture(new Rect(bx, ry + 9, barW * fill, 8), isActivePlayer ? staminaFillTex : alphaCyanTex);
-            }
-        }
-
-        // ==============================================================
-        // LEFT-MIDDLE: CURRENT OBJECTIVE CARD
-        // ==============================================================
-        private void DrawCurrentObjectiveCard(float sw, float sh)
-        {
-            float cardX = 22f;
-            float cardY = 192f;
-            float cardW = 220f;
-            float cardH = 62f;
-
-            GUI.DrawTexture(new Rect(cardX, cardY, cardW, cardH), darkBoxTex);
-
-            badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = new Color(0.7f, 0.8f, 0.9f);
-            GUI.Label(new Rect(cardX + 10, cardY + 8, cardW - 20, 16), "Current Objective", badgeStyle);
-
-            bool isEvader = playerController == null || playerController.CurrentRole == ChaseRole.Evader;
-            string objText = isEvader ? "Survive for 20 seconds" : "Tag the Evader within 20s";
+            smallTextStyle.fontSize = 9;
+            smallTextStyle.normal.textColor = new Color(0.65f, 0.75f, 0.9f);
+            GUI.Label(new Rect(cardX + 8, objY + 4, cardW - 16, 14), "CURRENT OBJECTIVE", smallTextStyle);
 
             badgeStyle.fontSize = 14;
             badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(cardX + 12, cardY + 28, 22, 22), "⏱", badgeStyle);
-
-            smallTextStyle.fontSize = 12;
-            smallTextStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(cardX + 38, cardY + 30, cardW - 46, 20), objText, smallTextStyle);
-        }
-
-        // ==============================================================
-        // TOP-RIGHT: MINI MAP (ARENA LAYOUT) CARD
-        // ==============================================================
-        private void DrawMiniMapCard(float sw, float sh)
-        {
-            float cardW = 220f;
-            float cardH = 160f;
-            float cardX = sw - cardW - 22f;
-            float cardY = 22f;
-
-            GUI.DrawTexture(new Rect(cardX, cardY, cardW, cardH), darkBoxTex);
-            GUI.DrawTexture(new Rect(cardX, cardY, cardW, 2), alphaCyanTex);
-
-            badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(cardX + 10, cardY + 8, cardW - 20, 18), "Mini Map (Arena Layout)", badgeStyle);
-
-            // 2D Tactical Map Box
-            float mapX = cardX + 12f;
-            float mapY = cardY + 30f;
-            float mapW = cardW - 24f;
-            float mapH = cardH - 42f;
-
-            GUI.DrawTexture(new Rect(mapX, mapY, mapW, mapH), panelBgTex);
-
-            // Arena Obstacle Blocks (Central Mountain & Side blocks)
-            float mapCX = mapX + mapW * 0.5f;
-            float mapCY = mapY + mapH * 0.5f;
-
-            GUI.color = new Color(0.18f, 0.24f, 0.35f, 0.95f);
-            // Center Quad Platform
-            GUI.DrawTexture(new Rect(mapCX - 18, mapCY - 18, 36, 36), Texture2D.whiteTexture);
-            // Surrounding obstacles
-            GUI.DrawTexture(new Rect(mapCX - 50, mapCY - 25, 20, 12), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(mapCX + 30, mapCY - 25, 20, 12), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(mapCX - 50, mapCY + 15, 20, 12), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(mapCX + 30, mapCY + 15, 20, 12), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-
-            // Player Indicator (Blue Arrow/Triangle)
-            float playerMapX = mapCX;
-            float playerMapY = mapCY;
-
-            if (playerController != null)
-            {
-                Vector3 pPos = playerController.transform.position;
-                playerMapX = Mathf.Clamp(mapCX + (pPos.x / 12f) * (mapW * 0.42f), mapX + 8, mapX + mapW - 8);
-                playerMapY = Mathf.Clamp(mapCY - (pPos.z / 12f) * (mapH * 0.42f), mapY + 8, mapY + mapH - 8);
-            }
-
-            GUI.color = Color.cyan;
-            GUI.DrawTexture(new Rect(playerMapX - 5, playerMapY - 5, 10, 10), circleTex);
-            GUI.color = Color.white;
-
-            // Teammate & Opponent Waypoints
-            GUI.color = new Color(0.15f, 0.65f, 1.0f);
-            GUI.DrawTexture(new Rect(mapCX - 35, mapCY, 6, 6), circleTex);
-            GUI.DrawTexture(new Rect(mapCX + 10, mapCY - 30, 6, 6), circleTex);
-
-            // Opponent Red Dot
-            if (opponentTransform != null && playerController != null)
-            {
-                Vector3 oPos = opponentTransform.position;
-                float oppMapX = Mathf.Clamp(mapCX + (oPos.x / 12f) * (mapW * 0.42f), mapX + 8, mapX + mapW - 8);
-                float oppMapY = Mathf.Clamp(mapCY - (oPos.z / 12f) * (mapH * 0.42f), mapY + 8, mapY + mapH - 8);
-
-                GUI.color = Color.red;
-                GUI.DrawTexture(new Rect(oppMapX - 4, oppMapY - 4, 8, 8), circleTex);
-            }
-            else
-            {
-                GUI.color = Color.red;
-                GUI.DrawTexture(new Rect(mapCX + 38, mapCY + 20, 7, 7), circleTex);
-                GUI.DrawTexture(new Rect(mapCX + 42, mapCY - 22, 7, 7), circleTex);
-            }
-            GUI.color = Color.white;
-
-            // Bottom-Right [M] Keycap
-            GUI.DrawTexture(new Rect(mapX + mapW - 22, mapY + mapH - 22, 18, 18), darkBoxTex);
-            badgeStyle.fontSize = 9;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(mapX + mapW - 22, mapY + mapH - 22, 18, 18), "M", badgeStyle);
-        }
-
-        // ==============================================================
-        // RIGHT-MIDDLE: STATUS PILLS
-        // ==============================================================
-        private void DrawStatusPills(float sw, float sh)
-        {
-            float cardW = 220f;
-            float cardX = sw - cardW - 22f;
-            float pillY = 192f;
+            GUI.Label(new Rect(cardX + 8, objY + 20, 18, 18), "⏱", badgeStyle);
 
             bool isEvader = playerController == null || playerController.CurrentRole == ChaseRole.Evader;
+            string objStr = isEvader ? "Survive for 20 seconds" : "Tag the Evader within 20s";
 
-            // 1. Red Alert Pill
-            GUI.DrawTexture(new Rect(cardX, pillY, cardW, 26), alertRedTex);
-            badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = Color.white;
-            string alertMsg = isEvader ? "🏃  You are being chased!" : "🏃  Pursue the Evader!";
-            GUI.Label(new Rect(cardX + 8, pillY + 4, cardW - 16, 20), alertMsg, badgeStyle);
-
-            // 2. Dark Blue Court Boundary Pill
-            GUI.DrawTexture(new Rect(cardX, pillY + 32, cardW, 26), darkBoxTex);
-            badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = new Color(0.8f, 0.9f, 1.0f);
-            GUI.Label(new Rect(cardX + 8, pillY + 36, cardW - 16, 20), "⏱  Stay in the arena", badgeStyle);
+            smallTextStyle.fontSize = 11;
+            smallTextStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(cardX + 28, objY + 21, cardW - 32, 18), objStr, smallTextStyle);
         }
 
         // ==============================================================
+        // BOTTOM-LEFT: WASD KEYCAPS (Matching Screenshot!)
         // ==============================================================
-        // CLEAN PC CONTROLS LEGEND (Esports PC HUD - no mobile joystick)
-        // ==============================================================
-        private void DrawPCControlsLegend(float sw, float sh)
+        private void DrawBottomLeftWASDKeybinds(float sw, float sh)
         {
-            float barW = 580f;
-            float barH = 26f;
-            float x = (sw - barW) * 0.5f;
-            float y = sh - 28f;
+            float startX = 22f;
+            float startY = sh - 120f;
+            float keySize = 22f;
+            float rowSpacing = 26f;
 
-            GUI.DrawTexture(new Rect(x, y, barW, barH), darkBoxTex);
-            badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = new Color(0.75f, 0.88f, 1.0f);
-            GUI.Label(new Rect(x, y + 4, barW, 18), "[WASD] Move  •  [Shift] Sprint  •  [Space] Vault/Jump  •  [Ctrl/C] Slide  •  [F] Tag  •  [Esc] Pause", badgeStyle);
+            string[] keys = { "W", "A", "S", "D" };
+            string[] labels = { "Forward", "Left", "Backward", "Right" };
+
+            for (int i = 0; i < 4; i++)
+            {
+                float y = startY + i * rowSpacing;
+
+                // Dark rounded keycap
+                GUI.DrawTexture(new Rect(startX, y, keySize, keySize), darkBoxTex);
+                GUI.DrawTexture(new Rect(startX, y, keySize, 1), semiDarkTex);
+
+                badgeStyle.fontSize = 11;
+                badgeStyle.fontStyle = FontStyle.Bold;
+                badgeStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(startX, y + 2, keySize, keySize), keys[i], badgeStyle);
+
+                // Action label next to keycap
+                smallTextStyle.fontSize = 11;
+                smallTextStyle.fontStyle = FontStyle.Normal;
+                smallTextStyle.normal.textColor = new Color(0.85f, 0.90f, 0.95f);
+                GUI.Label(new Rect(startX + keySize + 8, y + 3, 75, 18), labels[i], smallTextStyle);
+            }
         }
 
         // ==============================================================
-        // CENTER-BOTTOM: STAMINA BAR
+        // BOTTOM-CENTER: STAMINA BAR (Matching Screenshot!)
         // ==============================================================
         private void DrawStaminaMeter(float sw, float sh)
         {
-            float barW = 340f;
-            float barH = 14f;
+            float barW = 280f;
+            float barH = 10f;
             float sx = (sw - barW) * 0.5f;
-            float sy = sh - 56f;
+            float sy = sh - 42f;
 
-            // Running Man Icon Pill on left
-            float iconSize = 28f;
-            GUI.DrawTexture(new Rect(sx - 36, sy - 7, iconSize, iconSize), darkBoxTex);
-            GUI.DrawTexture(new Rect(sx - 36, sy - 7, iconSize, iconSize), ringTex);
-            badgeStyle.fontSize = 13;
-            badgeStyle.normal.textColor = Color.cyan;
-            GUI.Label(new Rect(sx - 36, sy - 3, iconSize, iconSize), "🏃", badgeStyle);
+            // Running Athlete Circle Icon
+            float iconSize = 26f;
+            GUI.DrawTexture(new Rect(sx - 34, sy - 8, iconSize, iconSize), darkBoxTex);
+            GUI.DrawTexture(new Rect(sx - 34, sy - 8, iconSize, iconSize), circleTex);
+            badgeStyle.fontSize = 12;
+            badgeStyle.normal.textColor = Color.black;
+            GUI.Label(new Rect(sx - 34, sy - 7, iconSize, iconSize), "🏃", badgeStyle);
 
-            // Background & Border
+            // Dark meter track
             GUI.DrawTexture(new Rect(sx, sy, barW, barH), darkBoxTex);
 
-            // Fill Bar (Normalized stamina)
+            // Glowing Cyan Fill
             float fill = playerController != null ? playerController.StaminaNormalized : 1.0f;
             GUI.DrawTexture(new Rect(sx, sy, barW * fill, barH), staminaFillTex);
 
-            // Label centered below
+            // "STAMINA" label below bar
             smallTextStyle.fontSize = 10;
-            smallTextStyle.normal.textColor = new Color(0.4f, 0.8f, 1.0f);
-            GUI.Label(new Rect(sx, sy + barH + 2, barW, 14), "Stamina Bar", smallTextStyle);
+            smallTextStyle.fontStyle = FontStyle.Bold;
+            smallTextStyle.normal.textColor = new Color(0.6f, 0.85f, 1.0f);
+            GUI.Label(new Rect(sx, sy + barH + 2, barW, 14), "STAMINA", smallTextStyle);
+        }
+
+        // ==============================================================
+        // BOTTOM-RIGHT: ESPORTS ACTION BADGES (Matching Screenshot!)
+        // ==============================================================
+        private void DrawBottomRightActionButtons(float sw, float sh)
+        {
+            float circleSize = 58f;
+            float spacing = 72f;
+            float rightX = sw - (spacing * 3) - 20f;
+            float actionY = sh - 95f;
+
+            // 1. Jump / Vault [Space]
+            DrawEsportsActionBadge(rightX, actionY, circleSize, "🏃", "Jump / Vault", "Space");
+
+            // 2. Slide / Crouch [C / Ctrl]
+            DrawEsportsActionBadge(rightX + spacing, actionY, circleSize, "🤸", "Slide / Crouch", "C / Ctrl");
+
+            // 3. Tag (Chaser) [F]
+            DrawEsportsActionBadge(rightX + spacing * 2, actionY, circleSize, "✋", "Tag (Chaser)", "F");
+        }
+
+        private void DrawEsportsActionBadge(float x, float y, float size, string icon, string actionLabel, string keybind)
+        {
+            // Dark circular action badge with white perimeter ring
+            GUI.color = new Color(0.04f, 0.07f, 0.12f, 0.85f);
+            GUI.DrawTexture(new Rect(x, y, size, size), circleTex);
+            GUI.color = new Color(0.85f, 0.90f, 0.95f, 0.90f);
+            GUI.DrawTexture(new Rect(x, y, size, size), ringTex);
+
+            // Icon
+            badgeStyle.fontSize = 20;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x, y + 14, size, 28), icon, badgeStyle);
+            GUI.color = Color.white;
+
+            // Action name below badge
+            smallTextStyle.fontSize = 10;
+            smallTextStyle.alignment = TextAnchor.MiddleCenter;
+            smallTextStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x - 15, y + size + 2, size + 30, 14), actionLabel, smallTextStyle);
+
+            // Keycap string below
+            badgeStyle.fontSize = 10;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = new Color(0.7f, 0.85f, 1.0f);
+            GUI.Label(new Rect(x - 15, y + size + 16, size + 30, 14), keybind, badgeStyle);
+            smallTextStyle.alignment = TextAnchor.MiddleLeft;
         }
 
         // ==============================================================
@@ -790,7 +837,7 @@ namespace WorldChaseTag.UI
             DrawTopBroadcastHeader(sw);
 
             // Left Side: Mini-Map + GAME PAUSED Card (Image 3)
-            DrawMiniMapCard(sw, sh);
+            DrawTopRightHeaderAndMinimap(sw, sh);
 
             float cardW = 340f;
             float cardH = 360f;

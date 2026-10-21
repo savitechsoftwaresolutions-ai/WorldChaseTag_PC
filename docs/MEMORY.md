@@ -53,7 +53,19 @@
   4. Added a 90% opacity fullscreen backdrop scrim (`GUI.color = new Color(0.04f, 0.06f, 0.09f, 0.90f)`) to `DrawChaseResultOverlay()`, hiding behind-the-scenes minimap/cards so the summary is clear and prominent.
   5. Fixed timer logic to display exact outcome time (`00:00` for evasion win, exact tag second for tag).
   6. Added `ProceedToNextChase()` in `WCTMatchController` which preserves team scores and seamlessly rotates the chaser/evader roles, bound to `[SPACE]`, `[ENTER]`, or clicking the button.
-- **Files Affected:** `Assets/WorldChaseTag/Scripts/Audio/WCTAudioSynthesizer.cs`, `Assets/WorldChaseTag/Scripts/Core/WCTMatchController.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`
+#### [BUG-003]: Recreate Reference Screenshot Visual Quality (Realistic Hands, Omega Runner, Quad Arena & HUD)
+- **Error Signature:** Player hands rendered as procedural blocks; opponent lacked Omega Ω jersey and athletic running gait; obstacles lacked the signature electric-blue border trims and angled vault ramp; HUD layout lacked the tournament logo, team card styling, and circular esports badges.
+- **Root Cause:**
+  1. `WCTFPPArms.cs` used primitive cubes for limbs without realistic phalanges, knuckles, wrist taper, or the black digital sports watch seen on the left wrist in the reference screenshot.
+  2. `WCTAthleteVisuals.cs` lacked human anatomical proportions, running cycle animation, and the team Omega burgundy jersey with the white **Ω** emblem and "WCT" brand.
+  3. `QuadArenaBuilder.cs` lacked the electric blue edge trim along obstacle tops/corners, the angled metal vault ramp on the right, and the foreground starting ledge with tubular scaffolding side rails.
+  4. `WCTHUDController.cs` lacked the official wireframe globe logo, "ALPHA (3/4)" frosted glass card with crown/avatars, bottom-left vertical WASD keycaps, and bottom-right circular esports action badges ([Space] Jump/Vault, [C/Ctrl] Slide/Crouch, [F] Tag).
+- **Permanent Fix:**
+  1. Rebuilt `WCTFPPArms.cs` with contoured forearms, digital sports watch with cyan telemetry, anatomical palm with thenar/hypothenar eminence, 5 articulated fingers with knuckles and natural resting curvature, and fingernails using PBR realistic skin materials (`WCTMaterialPalette.GetRealisticSkinMaterial()`).
+  2. Enhanced `WCTAthleteVisuals.cs` with an athletic humanoid runner model wearing the burgundy Omega Ω jersey, black compression pants, white ankle socks, running sneakers, and procedural velocity-driven running animation (torso forward lean, alternating arm swings, knee flexion).
+  3. Updated `QuadArenaBuilder.cs` with electric blue border trim on all vinyl obstacles, an angled metal vault ramp on the right with side guides, and the foreground starting box with tubular side rails positioned cleanly without collision clipping.
+  4. Updated `WCTHUDController.cs` with pixel-perfect recreation of the reference screenshot HUD: WCT globe logo, "ALPHA (3/4)" card with crown and athlete rows, top broadcast trapezoid score bar, top-right arena title and blueprint minimap with `[+]` zoom button, bottom-left vertical WASD key pills, bottom-center stamina bar, and bottom-right circular esports action badges.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Visuals/WCTFPPArms.cs`, `Assets/WorldChaseTag/Scripts/Visuals/WCTAthleteVisuals.cs`, `Assets/WorldChaseTag/Scripts/Visuals/WCTMaterialPalette.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`
 
 ---
 

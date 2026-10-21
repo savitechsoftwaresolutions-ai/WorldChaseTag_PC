@@ -24,6 +24,12 @@ namespace WorldChaseTag.Visuals
         private static Material chaserJerseyMat;
         private static Material evaderJerseyMat;
         private static Material skinMat;
+        private static Material realisticSkinMat;
+        private static Material sportsWatchMat;
+        private static Material watchScreenMat;
+        private static Material fingernailMat;
+        private static Material obstacleBlueTrimMat;
+        private static Material omegaJerseyMat;
         private static Material stadiumStandsMat;
 
         public static Material GetFloorMaterial()
@@ -195,6 +201,74 @@ namespace WorldChaseTag.Visuals
                 skinMat = CreatePBRMaterial("WCT_Athlete_Skin", new Color(0.78f, 0.58f, 0.46f), 0.0f, 0.25f);
             }
             return skinMat;
+        }
+
+        public static Material GetRealisticSkinMaterial()
+        {
+            if (realisticSkinMat == null)
+            {
+                // Photorealistic athletic skin with micro-creases and warm epidermal tones
+                realisticSkinMat = CreatePBRMaterial("WCT_Photorealistic_Skin", new Color(0.84f, 0.62f, 0.49f), 0.0f, 0.40f);
+                SetTexture(realisticSkinMat, GenerateSkinAlbedoTexture(512, 512));
+                SetNormalMap(realisticSkinMat, GenerateNormalMapFromHeight(256, 256, SkinHeightSampler, 2.2f), 1.15f);
+            }
+            return realisticSkinMat;
+        }
+
+        public static Material GetSportsWatchMaterial()
+        {
+            if (sportsWatchMat == null)
+            {
+                // Matte black sports silicone casing & strap matching screenshot
+                sportsWatchMat = CreatePBRMaterial("WCT_SportsWatch_Silicone", new Color(0.12f, 0.13f, 0.15f), 0.35f, 0.52f);
+                SetNormalMap(sportsWatchMat, GenerateNormalMapFromHeight(128, 128, BrushedMetalHeightSampler, 1.6f), 0.8f);
+            }
+            return sportsWatchMat;
+        }
+
+        public static Material GetWatchScreenMaterial()
+        {
+            if (watchScreenMat == null)
+            {
+                // High-tech digital LCD chronograph display with cyan athletic telemetry
+                watchScreenMat = CreatePBRMaterial("WCT_SportsWatch_Screen", new Color(0.04f, 0.07f, 0.10f), 0.1f, 0.95f);
+                SetTexture(watchScreenMat, GenerateWatchScreenTexture(256, 256));
+                SetEmission(watchScreenMat, new Color(0.05f, 0.85f, 0.95f) * 0.95f);
+            }
+            return watchScreenMat;
+        }
+
+        public static Material GetFingernailMaterial()
+        {
+            if (fingernailMat == null)
+            {
+                // Glossy natural keratin fingernail plate
+                fingernailMat = CreatePBRMaterial("WCT_Fingernail_Keratin", new Color(0.88f, 0.74f, 0.70f), 0.05f, 0.82f);
+            }
+            return fingernailMat;
+        }
+
+        public static Material GetObstacleBlueTrimMaterial()
+        {
+            if (obstacleBlueTrimMat == null)
+            {
+                // Striking electric cyan/blue obstacle edge trim matching screenshot
+                obstacleBlueTrimMat = CreatePBRMaterial("WCT_Obstacle_BlueTrim", new Color(0.05f, 0.62f, 0.98f), 0.15f, 0.72f);
+                SetEmission(obstacleBlueTrimMat, new Color(0.05f, 0.62f, 0.98f) * 0.35f);
+            }
+            return obstacleBlueTrimMat;
+        }
+
+        public static Material GetOmegaJerseyMaterial()
+        {
+            if (omegaJerseyMat == null)
+            {
+                // Deep athletic red/burgundy jersey featuring the white Omega Ω logo matching screenshot
+                omegaJerseyMat = CreatePBRMaterial("WCT_Jersey_Omega_Reference", new Color(0.68f, 0.15f, 0.15f), 0.08f, 0.42f);
+                SetTexture(omegaJerseyMat, GenerateOmegaJerseyTexture(512, 512));
+                SetNormalMap(omegaJerseyMat, GenerateNormalMapFromHeight(256, 256, VinylHeightSampler, 1.4f), 0.85f);
+            }
+            return omegaJerseyMat;
         }
 
         public static Material GetStadiumStandsMaterial()
@@ -522,6 +596,160 @@ namespace WorldChaseTag.Visuals
                 }
             }
 
+            tex.Apply();
+            return tex;
+        }
+
+        private static float SkinHeightSampler(int x, int y)
+        {
+            // Knuckle and flexor crease lines
+            float crease = 0f;
+            if (y % 64 < 4) crease -= 0.25f;
+            if (y % 128 < 6) crease -= 0.35f;
+
+            // Micro epidermal pores & hair follicle stippling
+            float pores = ((x * 47 + y * 83) % 19) / 19.0f * 0.06f;
+            float cellular = Mathf.Sin(x * 0.4f) * Mathf.Cos(y * 0.4f) * 0.04f;
+            return crease + pores + cellular;
+        }
+
+        private static Texture2D GenerateSkinAlbedoTexture(int width, int height)
+        {
+            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, true);
+            Color skinBase = new Color(0.85f, 0.64f, 0.52f);
+            Color skinWarm = new Color(0.82f, 0.52f, 0.42f); // Warm pinkish tone on knuckles
+            Color palmLight = new Color(0.89f, 0.72f, 0.62f);
+
+            for (int y = 0; y < height; y++)
+            {
+                float normY = (float)y / height;
+                for (int x = 0; x < width; x++)
+                {
+                    float normX = (float)x / width;
+                    Color pixel = Color.Lerp(skinBase, palmLight, normX * 0.3f);
+
+                    // Knuckle warm tone bands
+                    float knuckleDist = Mathf.Abs(Mathf.Sin(normY * Mathf.PI * 4f));
+                    if (knuckleDist > 0.7f)
+                    {
+                        pixel = Color.Lerp(pixel, skinWarm, (knuckleDist - 0.7f) * 1.5f);
+                    }
+
+                    // Micro noise
+                    float noise = ((x * 31 + y * 41) % 13) * 0.004f;
+                    pixel = new Color(pixel.r + noise, pixel.g + noise * 0.5f, pixel.b + noise * 0.3f, 1f);
+
+                    tex.SetPixel(x, y, pixel);
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        private static Texture2D GenerateWatchScreenTexture(int width, int height)
+        {
+            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, true);
+            Color screenBg = new Color(0.04f, 0.07f, 0.10f);
+            Color cyanGlow = new Color(0.08f, 0.95f, 0.88f);
+            Color dimCyan = new Color(0.04f, 0.35f, 0.32f);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    Color pixel = screenBg;
+
+                    // Outer bezel border
+                    if (x < 12 || x >= width - 12 || y < 12 || y >= height - 12)
+                    {
+                        pixel = new Color(0.02f, 0.03f, 0.04f);
+                    }
+                    // Telemetry Header bar
+                    else if (y >= height - 38 && y <= height - 34)
+                    {
+                        pixel = dimCyan;
+                    }
+                    // Center Big Digits area: "00:14"
+                    else if (y >= height * 0.38f && y <= height * 0.62f)
+                    {
+                        int segX = x % 48;
+                        if ((segX >= 10 && segX <= 14) || (segX >= 34 && segX <= 38) || (y >= height * 0.48f && y <= height * 0.52f))
+                        {
+                            pixel = cyanGlow;
+                        }
+                    }
+                    // Bottom Heart Rate telemetry
+                    else if (y >= 26 && y <= 34)
+                    {
+                        if (x >= 28 && x <= 80) pixel = cyanGlow;
+                    }
+
+                    tex.SetPixel(x, y, pixel);
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        private static Texture2D GenerateOmegaJerseyTexture(int width, int height)
+        {
+            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, true);
+            Color jerseyRed = new Color(0.64f, 0.12f, 0.12f);
+            Color fabricWeave = new Color(0.58f, 0.10f, 0.10f);
+            Color omegaWhite = new Color(0.96f, 0.96f, 0.96f);
+
+            float cx = width * 0.5f;
+            float cy = height * 0.55f;
+            float outerR = width * 0.20f;
+            float innerR = width * 0.13f;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    Color pixel = ((x + y) % 4 < 2) ? jerseyRed : fabricWeave;
+
+                    // Large Omega "Ω" Symbol on athlete's back
+                    float dx = x - cx;
+                    float dy = y - cy;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    // Main circular horseshoe arch
+                    if (dist >= innerR && dist <= outerR)
+                    {
+                        // Exclude bottom gap (between -70 and -110 deg)
+                        float angleDeg = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+                        if (!(angleDeg < -60f && angleDeg > -120f))
+                        {
+                            pixel = omegaWhite;
+                        }
+                    }
+
+                    // Left & Right Horizontal Feet of Omega Ω
+                    float feetY = cy - outerR * 0.88f;
+                    if (Mathf.Abs(y - feetY) <= (outerR - innerR) * 0.5f)
+                    {
+                        // Left foot
+                        if (x >= cx - outerR * 1.35f && x <= cx - innerR * 0.75f)
+                        {
+                            pixel = omegaWhite;
+                        }
+                        // Right foot
+                        if (x >= cx + innerR * 0.75f && x <= cx + outerR * 1.35f)
+                        {
+                            pixel = omegaWhite;
+                        }
+                    }
+
+                    // "WCT" Text Band above Omega symbol
+                    if (y >= height * 0.82f && y <= height * 0.86f && Mathf.Abs(x - cx) < width * 0.22f)
+                    {
+                        pixel = omegaWhite;
+                    }
+
+                    tex.SetPixel(x, y, pixel);
+                }
+            }
             tex.Apply();
             return tex;
         }
