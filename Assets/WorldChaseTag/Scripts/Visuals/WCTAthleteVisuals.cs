@@ -1,5 +1,6 @@
 using UnityEngine;
 using WorldChaseTag.Core;
+using WorldChaseTag.Movement;
 
 namespace WorldChaseTag.Visuals
 {
@@ -12,6 +13,8 @@ namespace WorldChaseTag.Visuals
         [Header("Athlete Info")]
         [SerializeField] private string athleteName = "OPPONENT";
         [SerializeField] private ChaseRole currentRole = ChaseRole.Evader;
+        [SerializeField] private bool isBodyVisible = true;
+        public bool IsBodyVisible => isBodyVisible;
 
         private GameObject visualsRoot;
         private MeshRenderer jerseyRenderer;
@@ -44,9 +47,18 @@ namespace WorldChaseTag.Visuals
         {
             mainCamera = Camera.main;
             lastPos = transform.position;
+
+            // If attached to the local player, ensure body starts hidden in FPP
+            var pc = GetComponent<WCTParkourController>();
+            if (pc != null)
+            {
+                isBodyVisible = pc.IsThirdPerson;
+            }
+
             BuildAthleteBody();
             BuildOverheadBillboard();
             ApplyRoleColors(currentRole);
+            SetBodyVisible(isBodyVisible);
         }
 
         public void SetRole(ChaseRole role, string name = "")
@@ -62,9 +74,14 @@ namespace WorldChaseTag.Visuals
 
         public void SetBodyVisible(bool visible)
         {
+            isBodyVisible = visible;
             if (visualsRoot != null)
             {
                 visualsRoot.SetActive(visible);
+            }
+            if (billboardTag != null)
+            {
+                billboardTag.gameObject.SetActive(visible);
             }
         }
 
@@ -164,6 +181,11 @@ namespace WorldChaseTag.Visuals
             // Sneaker
             CreateBodyPart("Shoe_R", rightCalfTr, new Vector3(0f, -0.40f, 0.06f), new Vector3(0.13f, 0.12f, 0.26f), Quaternion.identity, shoeMat);
             CreateBodyPart("ShoeSole_R", rightCalfTr, new Vector3(0f, -0.45f, 0.06f), new Vector3(0.135f, 0.035f, 0.27f), Quaternion.identity, sockMat);
+
+            if (visualsRoot != null)
+            {
+                visualsRoot.SetActive(isBodyVisible);
+            }
         }
 
         private void BuildOverheadBillboard()
@@ -196,6 +218,11 @@ namespace WorldChaseTag.Visuals
             distTextMesh.color = Color.white;
 
             UpdateOverheadDisplay();
+
+            if (billboardTag != null)
+            {
+                billboardTag.gameObject.SetActive(isBodyVisible);
+            }
         }
 
         private void Update()

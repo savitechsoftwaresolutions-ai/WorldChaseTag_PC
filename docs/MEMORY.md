@@ -116,7 +116,42 @@
   2. Raised perimeter barriers to 3.2m, expanded collider depth outward to 4.0m, tagged as `"Boundary"`, removed top handrail collider, excluded boundaries from parkour ledge detection, and added `EnforceArenaBoundaries()` safety position clamp.
   3. Bound Catch/Tag strictly to `KeyCode.C` and Left Mouse Click (removed KeyCode.F everywhere).
   4. Implemented full Championship Controls layout and "CUSTOMIZE CONTROLS" drawer panel with live scales, opacities, toggles, perspective switching (TPP/FPP on Key V), and playerprefs layout persistence.
-- **Files Affected:** `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Visuals/WCTAthleteVisuals.cs`
+#### [BUG-005]: FPP View Obstructed by Player 3D Head/Torso Mesh
+- **Error Signature:** In First-Person Perspective (FPP), a large flesh/peach-colored flat surface covered 40% of the screen from the bottom, blocking the view; player arms were not cleanly isolated.
+- **Root Cause:**
+  1. `WCTAthleteVisuals` was attached to the player GameObject and generated a 3D model (head, neck, shoulders) with `WCTMaterialPalette.GetRealisticSkinMaterial()`. The neck and head cubes sat directly at camera eye height (`y = 1.6m`), clipping right into the camera near plane.
+  2. `SetBodyVisible(false)` was called prior to `Start()`, but `visualsRoot` was null at that time and the visibility boolean was not saved or enforced in `Start()`.
+  3. `SetPerspective` was not called in `WCTParkourController.Start()`, leaving the 3D body active.
+  4. `fppArms.gameObject.SetActive(!isThirdPerson)` in `SetPerspective` deactivated the camera holder itself when toggling perspective because `WCTFPPArms` was attached directly to the camera object.
+  5. The player GameObject was created using `GameObject.CreatePrimitive(PrimitiveType.Capsule)` without destroying the default `MeshRenderer`/`MeshFilter`.
+- **Permanent Fix:**
+  1. Updated `WCTAthleteVisuals` with persistent `isBodyVisible` tracking, auto-detecting `WCTParkourController` to default to hidden in FPP, and explicitly deactivating `visualsRoot` and `billboardTag` on the local player.
+  2. Added `SetArmsVisible(bool visible)` to `WCTFPPArms` which toggles `armsRoot` directly without affecting the camera GameObject.
+  3. Initialized `SetPerspective(isThirdPerson)` at startup in `WCTParkourController.Start()`.
+  4. Created player GameObjects cleanly with `new GameObject("Player_Athlete")` rather than primitive capsules.
+#### [BUG-006]: Mobile Touch Alignment & Android Mobile APK Generation
+- **Summary:** Built the official Android mobile package (`WorldChaseTag.apk`) featuring the championship esports HUD, touch controls, and fixed FPP perspective.
+- **Key Enhancements:**
+  1. Synchronized `UpdateMobileTouchInput` with the dynamic button layout scales (`joystickScale`, `buttonScale`) for Catch (`82dp`), Jump (`64dp`), Slide (`64dp`), View TPP/FPP (`48dp`), Auto-Run, and Sprint.
+  2. Fixed swipe-look detection so touch look swipes do not accidentally trigger action buttons, and touch look exclusion area updates with dynamic button sizes.
+  3. Built via IL2CPP for modern 64-bit Android devices (`ARM64` and `X86_64`) targeting Android API Level 34.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Editor/WCTSceneBuilder.cs`
+
+#### [BUG-007]: Mobile Parkour Movement Over-Speed, Instant AI Tagging, Third-Person Wall Clipping, Safe-Area Control Customizer & Role Gating
+- **Error Signature:** Player moves too fast (superhuman speed); opponent catches player almost immediately at chase start; central obstacle blocks 80% of screen in FPP; camera clips through platforms/walls in TPP; touch controls small, fixed in raw pixels, clipped behind notches/safe-areas; Catch button active and triggers for Evader.
+- **Root Cause:**
+  1. Movement had excessive base velocity (8.5 m/s) with instant acceleration and zero analog joystick graduation.
+  2. AI opponent spawned 2.8m from player with zero reaction delay, immediately sprinting in straight lines to tag upon round start.
+  3. Chaser spawned on top of an 0.82m platform directly in front of a 3.4m wide central mountain, subtending most of the 75° camera view.
+  4. Third-person camera had no physics collision handling and was repeatedly overridden by FPP head-bobbing logic.
+  5. Touch controls used raw pixels without safe-area inset scaling or DP scaling (`dpScale`), and Catch button was clickable while playing Evader.
+- **Permanent Fix:**
+  1. Calibrated realistic human athletic speeds in `WCTParkourController.cs`: Walk = 2.4 m/s, Jog = 3.6 m/s, Sprint = 6.2 m/s, Slide = 6.8 m/s decaying over 0.65s, Jump = 0.85m, smooth acceleration & deceleration (14 m/s²), and analog joystick threshold scaling (`[0.05, 0.50]` Walk, `[0.50, 0.85]` Jog, `>0.85` or Sprint button for Sprint).
+  2. Rebalanced `WCTAgentMotor.cs` athletic speeds per difficulty (Easy: 4.8 m/s, Normal: 5.6 m/s, Hard: 6.1 m/s) and added post-GO reaction latency in `WCTChaserAI.cs` (Easy: 0.65s, Normal: 0.35s, Hard: 0.15s) with `Physics.Linecast` line-of-sight checks.
+  3. Resized Central Mountain to compact tournament dimensions `(2.2m, 0.65m, 2.0m)` in `QuadArenaBuilder.cs` and placed start positions on court floor at `z = -4.6m` (Chaser) and `z = 4.4m` (Evader), providing a clean 9.0m open court spacing with 3.5m running flanks.
+  4. Implemented third-person collision follow camera in `WCTParkourController.cs` using a head-to-camera spherecast (0.20m radius) pulling forward to `camHit.distance - 0.22m`, and set camera `nearClipPlane = 0.02f` with FOV = 78°.
+  5. Implemented responsive safe-area scaled mobile controls (`dpScale = Mathf.Clamp(Mathf.Min(sw/1280, sh/720), 1.0, 2.2)`), independent multi-touch finger tracking, 6 layout presets (Classic, Two Thumb, Left-Handed, Right-Handed, Large Buttons, Compact), and role-gated Catch button (dimmed/disabled with lock icon for Evader).
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`, `Assets/WorldChaseTag/Scripts/AI/WCTAgentMotor.cs`, `Assets/WorldChaseTag/Scripts/AI/WCTChaserAI.cs`, `Assets/WorldChaseTag/Scripts/Combat/WCTTagSystem.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Core/WCTSceneCoordinator.cs`, `Assets/WorldChaseTag/Scripts/Editor/WCTSceneBuilder.cs`
 
 ---
 

@@ -12,8 +12,8 @@ namespace WorldChaseTag.AI
         [SerializeField] private LayerMask obstacleLayer = ~0;
 
         [Header("Tactics & Interception")]
-        [SerializeField] private float tagReach = 2.0f;
-        [SerializeField] private float leadTimePrediction = 0.6f;
+        [SerializeField] private float tagReach = 1.75f;
+        [SerializeField] private float leadTimePrediction = 0.5f;
         [SerializeField] private float pathRecalculateRate = 0.12f;
 
         private WCTAgentMotor motor;
@@ -21,6 +21,10 @@ namespace WorldChaseTag.AI
         private Vector3 estimatedEvaderVelocity;
         private float nextDecisionTime = 0f;
         private Vector3 currentInterceptionPoint;
+
+        private float chaseStartTime = 0f;
+        private bool wasChaseActiveLastFrame = false;
+        private float startReactionDelay = 0.35f;
 
         public bool IsActiveChaser { get; set; } = false;
 
@@ -40,12 +44,33 @@ namespace WorldChaseTag.AI
 
         private void Update()
         {
-            if (WCTMatchController.Instance == null || !WCTMatchController.Instance.IsChaseActive || !IsActiveChaser)
+            bool isChaseActive = WCTMatchController.Instance != null && WCTMatchController.Instance.IsChaseActive && IsActiveChaser;
+
+            if (isChaseActive && !wasChaseActiveLastFrame)
+            {
+                chaseStartTime = Time.time;
+                AIDifficulty diff = WCTMatchController.Instance != null ? WCTMatchController.Instance.Difficulty : AIDifficulty.Normal;
+                switch (diff)
+                {
+                    case AIDifficulty.Easy: startReactionDelay = 0.65f; break;
+                    case AIDifficulty.Normal: startReactionDelay = 0.35f; break;
+                    case AIDifficulty.Hard: startReactionDelay = 0.15f; break;
+                    case AIDifficulty.Expert: startReactionDelay = 0.05f; break;
+                }
+                if (motor != null) motor.ApplyDifficultySettings(diff);
+            }
+            wasChaseActiveLastFrame = isChaseActive;
+
+            if (!isChaseActive || evaderTransform == null)
             {
                 return;
             }
 
-            if (evaderTransform == null) return;
+            // Human Reaction delay at GO: gives Evader vital split-second head start to choose escape route
+            if (Time.time < chaseStartTime + startReactionDelay)
+            {
+                return;
+            }
 
             // Estimate Evader velocity
             float dt = Time.deltaTime;
@@ -66,14 +91,19 @@ namespace WorldChaseTag.AI
             // Move motor towards interception point
             motor.MoveToward(currentInterceptionPoint, true);
 
-            // Check if within tag reach
+            // Check if within tag reach with line of sight check
             float distanceToEvader = Vector3.Distance(transform.position, evaderTransform.position);
             if (distanceToEvader <= tagReach)
             {
-                // Attempt tag
                 Vector3 tagOrigin = transform.position + Vector3.up * 1.0f;
+                Vector3 targetHead = evaderTransform.position + Vector3.up * 1.0f;
                 Vector3 forward = (evaderTransform.position - transform.position).normalized;
-                WCTTagSystem.Instance?.ExecuteTagAttempt(tagOrigin, forward);
+
+                // Strict line of sight check before attempting tag (no tagging through walls)
+                if (!Physics.Linecast(tagOrigin, targetHead, obstacleLayer, QueryTriggerInteraction.Ignore))
+                {
+                    WCTTagSystem.Instance?.ExecuteTagAttempt(tagOrigin, forward);
+                }
             }
         }
 

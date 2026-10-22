@@ -54,6 +54,11 @@ namespace WorldChaseTag.Visuals
             if (parkourController != null)
             {
                 parkourController.OnParkourActionTriggered += HandleParkourAction;
+                SetArmsVisible(!parkourController.IsThirdPerson);
+            }
+            else
+            {
+                SetArmsVisible(true);
             }
         }
 
@@ -74,6 +79,14 @@ namespace WorldChaseTag.Visuals
                 {
                     DestroyImmediate(child.gameObject);
                 }
+            }
+        }
+
+        public void SetArmsVisible(bool visible)
+        {
+            if (armsRoot != null)
+            {
+                armsRoot.gameObject.SetActive(visible);
             }
         }
 

@@ -41,12 +41,23 @@ namespace WorldChaseTag.Core
 
         private void SetupCoreSystems()
         {
-            // Enforce High-End PC Ultra Graphics at runtime
-            QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, true);
-            QualitySettings.vSyncCount = 1;
-            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
-            QualitySettings.antiAliasing = 8;
-            QualitySettings.pixelLightCount = 16;
+            if (Application.isMobilePlatform)
+            {
+                Application.targetFrameRate = 60;
+                QualitySettings.vSyncCount = 0;
+                QualitySettings.shadowDistance = 25f;
+                QualitySettings.antiAliasing = 2;
+                QualitySettings.pixelLightCount = 4;
+            }
+            else
+            {
+                // Enforce High-End PC Ultra Graphics at runtime
+                QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, true);
+                QualitySettings.vSyncCount = 1;
+                QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+                QualitySettings.antiAliasing = 8;
+                QualitySettings.pixelLightCount = 16;
+            }
 
             // Ensure MatchController
             if (FindFirstObjectByType<WCTMatchController>() == null)
@@ -121,7 +132,7 @@ namespace WorldChaseTag.Core
 
             if (playerActor == null)
             {
-                playerActor = CreatePlayerGameObject(new Vector3(0f, 0.5f, -5.2f));
+                playerActor = CreatePlayerGameObject(new Vector3(0f, 0.15f, -4.6f));
             }
 
             // Ensure First-Person Arms on Player Camera
@@ -146,7 +157,7 @@ namespace WorldChaseTag.Core
 
             if (aiActorObject == null)
             {
-                aiActorObject = CreateAIActorGameObject(new Vector3(0f, 0.5f, 3.2f));
+                aiActorObject = CreateAIActorGameObject(new Vector3(0f, 0.15f, 4.4f));
             }
 
             // Ensure High-Visibility 3D Athlete Visuals on AI Opponent
@@ -172,14 +183,9 @@ namespace WorldChaseTag.Core
 
         private WCTParkourController CreatePlayerGameObject(Vector3 position)
         {
-            GameObject player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            player.name = "WCT_Player";
+            GameObject player = new GameObject("WCT_Player");
             player.tag = "Player";
             player.transform.position = position;
-
-            // Remove default capsule collider, CharacterController acts as collider
-            Collider col = player.GetComponent<Collider>();
-            if (col != null) Destroy(col);
 
             CharacterController cc = player.AddComponent<CharacterController>();
             cc.height = 1.8f;
@@ -236,8 +242,8 @@ namespace WorldChaseTag.Core
         {
             if (arenaBuilder == null || playerActor == null || aiActorObject == null) return;
 
-            Vector3 chaserPos = arenaBuilder.ChaserPlateSpawn != null ? arenaBuilder.ChaserPlateSpawn.position : new Vector3(0f, 0.85f, -4.15f);
-            Vector3 evaderPos = arenaBuilder.EvaderSpawn != null ? arenaBuilder.EvaderSpawn.position : new Vector3(0f, 0.1f, 3.2f);
+            Vector3 chaserPos = arenaBuilder.ChaserPlateSpawn != null ? arenaBuilder.ChaserPlateSpawn.position : new Vector3(0f, 0.15f, -4.6f);
+            Vector3 evaderPos = arenaBuilder.EvaderSpawn != null ? arenaBuilder.EvaderSpawn.position : new Vector3(0f, 0.15f, 4.4f);
 
             var pCC = playerActor.GetComponent<CharacterController>();
             if (pCC != null)

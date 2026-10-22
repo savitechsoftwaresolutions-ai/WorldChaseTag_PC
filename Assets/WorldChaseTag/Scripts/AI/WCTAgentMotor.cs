@@ -8,16 +8,16 @@ namespace WorldChaseTag.AI
     [RequireComponent(typeof(CharacterController))]
     public class WCTAgentMotor : MonoBehaviour
     {
-        [Header("Movement")]
-        [SerializeField] private float walkSpeed = 5.2f;
-        [SerializeField] private float sprintSpeed = 8.4f;
-        [SerializeField] private float acceleration = 20f;
-        [SerializeField] private float turnSpeed = 12f;
-        [SerializeField] private float gravity = -24f;
+        [Header("Movement (Configurable Athletic Targets)")]
+        [SerializeField] private float walkSpeed = 2.4f;
+        [SerializeField] private float sprintSpeed = 5.6f;
+        [SerializeField] private float acceleration = 12f;
+        [SerializeField] private float turnSpeed = 9f;
+        [SerializeField] private float gravity = -20f;
 
         [Header("Parkour & Obstacles")]
         [SerializeField] private LayerMask obstacleLayer = ~0;
-        [SerializeField] private float vaultDuration = 0.35f;
+        [SerializeField] private float vaultDuration = 0.38f;
         [SerializeField] private float mantleDuration = 0.45f;
 
         private CharacterController controller;
@@ -28,6 +28,37 @@ namespace WorldChaseTag.AI
 
         public bool IsPerformingParkour => isPerformingParkour;
         public float CurrentSpeed => new Vector3(controller.velocity.x, 0f, controller.velocity.z).magnitude;
+
+        public void ApplyDifficultySettings(WorldChaseTag.Core.AIDifficulty diff)
+        {
+            switch (diff)
+            {
+                case WorldChaseTag.Core.AIDifficulty.Easy:
+                    walkSpeed = 2.0f;
+                    sprintSpeed = 4.8f;
+                    acceleration = 9f;
+                    turnSpeed = 6f;
+                    break;
+                case WorldChaseTag.Core.AIDifficulty.Normal:
+                    walkSpeed = 2.4f;
+                    sprintSpeed = 5.6f;
+                    acceleration = 12f;
+                    turnSpeed = 9f;
+                    break;
+                case WorldChaseTag.Core.AIDifficulty.Hard:
+                    walkSpeed = 2.4f;
+                    sprintSpeed = 6.1f;
+                    acceleration = 14f;
+                    turnSpeed = 12f;
+                    break;
+                case WorldChaseTag.Core.AIDifficulty.Expert:
+                    walkSpeed = 2.5f;
+                    sprintSpeed = 6.2f;
+                    acceleration = 16f;
+                    turnSpeed = 14f;
+                    break;
+            }
+        }
 
         private void Awake()
         {

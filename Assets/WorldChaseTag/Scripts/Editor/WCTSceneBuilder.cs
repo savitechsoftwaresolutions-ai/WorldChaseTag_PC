@@ -78,11 +78,9 @@ namespace WorldChaseTag.Editor
             arenaBuilder.BuildArena();
 
             // 3. Create Player (FPP Parkour Athlete with Animated Hands)
-            GameObject playerObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            playerObj.name = "Player_Athlete";
+            GameObject playerObj = new GameObject("Player_Athlete");
             playerObj.tag = "Player";
-            playerObj.transform.position = new Vector3(0f, 1.75f, -4.15f);
-            Object.DestroyImmediate(playerObj.GetComponent<Collider>());
+            playerObj.transform.position = new Vector3(0f, 0.9f, -4.6f);
 
             CharacterController playerCC = playerObj.AddComponent<CharacterController>();
             playerCC.height = 1.8f;
@@ -119,7 +117,7 @@ namespace WorldChaseTag.Editor
             // 4. Create AI Opponent with High-Visibility 3D Athlete Visuals
             GameObject aiObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             aiObj.name = "AI_Opponent_Athlete";
-            aiObj.transform.position = new Vector3(0f, 0.9f, 3.2f);
+            aiObj.transform.position = new Vector3(0f, 0.9f, 4.4f);
             Object.DestroyImmediate(aiObj.GetComponent<Collider>());
 
             CharacterController aiCC = aiObj.AddComponent<CharacterController>();

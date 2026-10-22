@@ -42,47 +42,42 @@ namespace WorldChaseTag.Arena
             floor.transform.localScale = new Vector3(arenaWidth, 0.5f, arenaLength);
             ApplyMaterial(floor, WCTMaterialPalette.GetFloorMaterial());
 
-            // 2. Chaser Footprint Starting Plate (Elevated on Starting Platform matching screenshot!)
+            // 2. Chaser Starting Plate (Tournament rubber plate on court floor with clear sightlines)
             GameObject plateObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             plateObj.name = "ChaserStartingPlate";
             plateObj.transform.parent = transform;
-            plateObj.transform.localPosition = new Vector3(0f, 0.83f, -4.15f);
-            plateObj.transform.localScale = new Vector3(1.2f, 0.04f, 1.2f);
+            plateObj.transform.localPosition = new Vector3(0f, 0.02f, -4.6f);
+            plateObj.transform.localScale = new Vector3(1.2f, 0.02f, 1.2f);
             DestroyImmediate(plateObj.GetComponent<Collider>());
             ApplyMaterial(plateObj, WCTMaterialPalette.GetChaserPlateMaterial(false));
 
             GameObject chaserSpawnObj = new GameObject("ChaserSpawnPoint");
             chaserSpawnObj.transform.parent = transform;
-            chaserSpawnObj.transform.localPosition = new Vector3(0f, 0.85f, -4.15f);
+            chaserSpawnObj.transform.localPosition = new Vector3(0f, 0.15f, -4.6f);
             chaserSpawnObj.transform.localRotation = Quaternion.identity;
             chaserPlateSpawn = chaserSpawnObj.transform;
 
-            // 3. Evader Starting Point (North quadrant)
+            // 3. Evader Starting Point (Opposite quadrant with 9.0m separation)
             GameObject evaderSpawnObj = new GameObject("EvaderSpawnPoint");
             evaderSpawnObj.transform.parent = transform;
-            evaderSpawnObj.transform.localPosition = new Vector3(0f, 0.1f, 3.2f);
+            evaderSpawnObj.transform.localPosition = new Vector3(0f, 0.15f, 4.4f);
             evaderSpawnObj.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             evaderSpawn = evaderSpawnObj.transform;
 
             // 4. Perimeter Branded Containment Barriers (ALPHA / OMEGA / WCT)
             CreateBrandedPerimeter();
 
-            // 5. Central Mountain Obstacle (Stepped platform with vault ledges & ramp)
+            // 5. Central Mountain Obstacle (Compact WCT stepped pyramid with wide lanes)
             CreateMountainObstacle(new Vector3(0f, 0f, 0f));
 
-            // 6. Angled Vault Ramp (Matching Screenshot on right!)
-            CreateAngledVaultRamp(new Vector3(3.4f, 0f, 0.4f), 0f);
+            // 6. Angled Vault Ramp (Right flank at X = +3.2m)
+            CreateAngledVaultRamp(new Vector3(3.2f, 0f, 0.2f), 0f);
 
-            // 7. Foreground Player Starting Platform & Side Rails (Matching Screenshot perspective!)
-            CreatePaddedObstacleBlock("Foreground_Starting_Platform", new Vector3(0f, 0f, -4.15f), new Vector3(1.8f, 0.82f, 1.2f));
-            CreateVaultHurdle(new Vector3(-1.05f, 0f, -4.15f), 90f);
-            CreateVaultHurdle(new Vector3(1.05f, 0f, -4.15f), 90f);
-
-            // 8. Low Vault Hurdles (Black industrial steel rails with pipe fittings)
+            // 7. Tactical Vault Hurdles & Flank Mantle Blocks
             CreateVaultHurdle(new Vector3(-3.2f, 0f, 1.8f), 0f);
             CreateVaultHurdle(new Vector3(3.2f, 0f, -2.4f), 0f);
-            CreateVaultHurdle(new Vector3(-2.8f, 0f, -3.2f), 90f);
-            CreateVaultHurdle(new Vector3(2.8f, 0f, 3.2f), 90f);
+            CreateVaultHurdle(new Vector3(-2.6f, 0f, -2.8f), 90f);
+            CreateVaultHurdle(new Vector3(2.6f, 0f, 3.0f), 90f);
 
             // 9. High Mantle Blocks (Corner platforms at 1.6m height with blue trim)
             CreatePaddedObstacleBlock("CornerMantle_NorthWest", new Vector3(-3.8f, 0f, 3.8f), new Vector3(2.2f, 1.6f, 1.8f));
@@ -159,11 +154,11 @@ namespace WorldChaseTag.Arena
             mountain.transform.parent = transform;
             mountain.transform.localPosition = center;
 
-            // Lower base step (0.75m high, 3.4m x 2.6m)
-            CreateCompositeBlock(mountain.transform, "Mountain_BaseStep", new Vector3(0f, 0.375f, 0f), new Vector3(3.4f, 0.75f, 2.6f));
+            // Lower base step (0.65m high, 2.2m x 2.0m)
+            CreateCompositeBlock(mountain.transform, "Mountain_BaseStep", new Vector3(0f, 0.325f, 0f), new Vector3(2.2f, 0.65f, 2.0f));
 
-            // Upper tier (1.4m high, 2.0m x 1.6m)
-            CreateCompositeBlock(mountain.transform, "Mountain_TopTier", new Vector3(0f, 1.075f, 0f), new Vector3(2.0f, 0.65f, 1.6f));
+            // Upper tier (1.2m total height, 1.4m x 1.2m)
+            CreateCompositeBlock(mountain.transform, "Mountain_TopTier", new Vector3(0f, 0.925f, 0f), new Vector3(1.4f, 0.55f, 1.2f));
         }
 
         private void CreateAngledVaultRamp(Vector3 pos, float yRotation)

@@ -90,6 +90,25 @@ namespace WorldChaseTag.UI
         private bool isAutoRunLocked = false;
         private float saveNotificationTimer = 0f;
 
+        // Movable control normalized safe area positions (0.0 to 1.0)
+        private Vector2 joyPosNorm = new Vector2(0.12f, 0.78f);
+        private Vector2 actionClusterPosNorm = new Vector2(0.88f, 0.78f);
+        private Vector2 sprintPosNorm = new Vector2(0.08f, 0.60f);
+        private float touchLookSensitivity = 0.18f;
+        private bool invertTouchY = false;
+
+        private Vector2 GetScreenPos(Vector2 norm)
+        {
+            Rect safe = Screen.safeArea;
+            float sw = Screen.width;
+            float sh = Screen.height;
+
+            // Invert Y coordinate because Unity GUI space has (0, 0) at top-left
+            float x = Mathf.Lerp(safe.xMin + 20f, safe.xMax - 20f, Mathf.Clamp01(norm.x));
+            float y = Mathf.Lerp(sh - safe.yMax + 20f, sh - safe.yMin - 20f, Mathf.Clamp01(norm.y));
+            return new Vector2(x, y);
+        }
+
         private void Awake()
         {
             if (Instance == null)
@@ -249,22 +268,43 @@ namespace WorldChaseTag.UI
 
             float sw = Screen.width;
             float sh = Screen.height;
-            float joyRadius = 60f;
-            Vector2 joyCenter = new Vector2(115f, sh - 115f);
+            float dpScale = Mathf.Clamp(Mathf.Min(sw / 1280f, sh / 720f), 1.0f, 2.2f);
 
-            // Action button touch detection rectangles
-            float spacing = 86f;
-            float rightX = sw - (spacing * 3) - 25f;
-            float actionY = sh - 110f;
-            Rect jumpRect = new Rect(rightX - 15f, actionY - 15f, 90f, 90f);
-            Rect slideRect = new Rect(rightX + spacing - 15f, actionY - 15f, 90f, 90f);
-            Rect catchRect = new Rect(rightX + spacing * 2 - 20f, actionY - 24f, 110f, 110f);
+            // Responsive Scaled Joystick Anchor
+            float joyRadius = 55f * dpScale * joystickScale;
+            Vector2 joyCenter = GetScreenPos(joyPosNorm);
 
-            float gyroW = 120f;
-            float gyroH = 28f;
-            float gyroX = sw - gyroW - 225f;
-            float gyroY = 12f;
-            Rect gyroRect = new Rect(gyroX - 10f, gyroY - 6f, gyroW + 20f, gyroH + 16f);
+            // Responsive Scaled Action Cluster Anchor
+            Vector2 actionAnchor = GetScreenPos(actionClusterPosNorm);
+            bool isLeftHanded = (currentPresetIndex == 2 || joyPosNorm.x > actionClusterPosNorm.x);
+            float anchorSign = isLeftHanded ? 1f : -1f;
+
+            float catchSize = 82f * dpScale * buttonScale;
+            float catchX = actionAnchor.x + anchorSign * (25f * dpScale) - catchSize * 0.5f;
+            float catchY = actionAnchor.y - 45f * dpScale - catchSize * 0.5f;
+            Rect catchRect = new Rect(catchX, catchY, catchSize, catchSize);
+
+            float jumpSize = 66f * dpScale * buttonScale;
+            float jumpX = actionAnchor.x + anchorSign * (105f * dpScale) - jumpSize * 0.5f;
+            float jumpY = actionAnchor.y + 10f * dpScale - jumpSize * 0.5f;
+            Rect jumpRect = new Rect(jumpX, jumpY, jumpSize, jumpSize);
+
+            float slideSize = 66f * dpScale * buttonScale;
+            float slideX = actionAnchor.x + anchorSign * (35f * dpScale) - slideSize * 0.5f;
+            float slideY = actionAnchor.y + 40f * dpScale - slideSize * 0.5f;
+            Rect slideRect = new Rect(slideX, slideY, slideSize, slideSize);
+
+            float viewSize = 50f * dpScale * buttonScale;
+            float viewX = actionAnchor.x + anchorSign * (25f * dpScale) - viewSize * 0.5f;
+            float viewY = actionAnchor.y - 115f * dpScale - viewSize * 0.5f;
+            Rect viewRect = new Rect(viewX, viewY, viewSize, viewSize);
+
+            Vector2 sprintAnchor = GetScreenPos(sprintPosNorm);
+            float sprintSize = 52f * dpScale * buttonScale;
+            Rect sprintRect = new Rect(sprintAnchor.x - sprintSize * 0.5f, sprintAnchor.y - sprintSize * 0.5f, sprintSize, sprintSize);
+            Rect autoRect = new Rect(sprintAnchor.x - 48f * dpScale, sprintAnchor.y - 46f * dpScale, 96f * dpScale, 28f * dpScale);
+
+            bool isPlayerChaser = (playerController != null && playerController.CurrentRole == ChaseRole.Chaser);
 
             if (Input.touchCount > 0)
             {
@@ -279,7 +319,11 @@ namespace WorldChaseTag.UI
                     {
                         if (catchRect.Contains(guiPos))
                         {
-                            playerController.TriggerCatchOrTag();
+                            // Catch button only triggers when playing Chaser!
+                            if (isPlayerChaser)
+                            {
+                                playerController.TriggerCatchOrTag();
+                            }
                             continue;
                         }
                         if (jumpRect.Contains(guiPos))
@@ -292,15 +336,26 @@ namespace WorldChaseTag.UI
                             playerController.TriggerSlideOrCrouch();
                             continue;
                         }
-                        if (gyroRect.Contains(guiPos))
+                        if (viewRect.Contains(guiPos))
                         {
-                            playerController.EnableGyroscope = !playerController.EnableGyroscope;
+                            playerController.TogglePerspective();
+                            continue;
+                        }
+                        if (autoRect.Contains(guiPos))
+                        {
+                            isAutoRunLocked = !isAutoRunLocked;
+                            playerController.IsAutoRun = isAutoRunLocked;
+                            continue;
+                        }
+                        if (sprintRect.Contains(guiPos))
+                        {
+                            playerController.SetVirtualJoystick(new Vector2(0f, 1f), true);
                             continue;
                         }
                     }
 
-                    // 2. Left touch zone: Virtual Joystick
-                    if (guiPos.x < sw * 0.45f && guiPos.y > sh * 0.25f)
+                    // 2. Virtual Joystick Tracking (Independent Finger ID)
+                    if (Vector2.Distance(guiPos, joyCenter) < joyRadius * 1.6f)
                     {
                         if (touch.phase == TouchPhase.Began && joystickFingerId == -1)
                         {
@@ -329,25 +384,33 @@ namespace WorldChaseTag.UI
                             playerController.SetVirtualJoystick(Vector2.zero, false);
                         }
                     }
-                    // 3. Right touch zone: Swipe Look (excluding bottom-right buttons area)
-                    else if (guiPos.x > sw * 0.40f && !catchRect.Contains(guiPos) && !jumpRect.Contains(guiPos) && !slideRect.Contains(guiPos))
+                    // 3. Right touch zone: Swipe Camera Look (excluding all button areas)
+                    else
                     {
-                        if (touch.phase == TouchPhase.Began && swipeLookFingerId == -1)
+                        bool touchOnButton = catchRect.Contains(guiPos) || jumpRect.Contains(guiPos) || slideRect.Contains(guiPos) || 
+                                             viewRect.Contains(guiPos) || autoRect.Contains(guiPos) || sprintRect.Contains(guiPos);
+
+                        bool inLookZone = isLeftHanded ? (guiPos.x < sw * 0.60f) : (guiPos.x > sw * 0.40f);
+                        if (inLookZone && !touchOnButton && touch.fingerId != joystickFingerId)
                         {
-                            swipeLookFingerId = touch.fingerId;
-                            lastSwipePos = touch.position;
-                        }
-                        else if (touch.fingerId == swipeLookFingerId)
-                        {
-                            if (touch.phase == TouchPhase.Moved)
+                            if (touch.phase == TouchPhase.Began && swipeLookFingerId == -1)
                             {
-                                Vector2 delta = (touch.position - lastSwipePos) * 0.16f;
-                                playerController.AddTouchLookDelta(new Vector2(delta.x, delta.y));
+                                swipeLookFingerId = touch.fingerId;
                                 lastSwipePos = touch.position;
                             }
-                            else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                            else if (touch.fingerId == swipeLookFingerId)
                             {
-                                swipeLookFingerId = -1;
+                                if (touch.phase == TouchPhase.Moved)
+                                {
+                                    Vector2 delta = (touch.position - lastSwipePos) * touchLookSensitivity;
+                                    if (invertTouchY) delta.y = -delta.y;
+                                    playerController.AddTouchLookDelta(new Vector2(delta.x, delta.y));
+                                    lastSwipePos = touch.position;
+                                }
+                                else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+                                {
+                                    swipeLookFingerId = -1;
+                                }
                             }
                         }
                     }
@@ -961,20 +1024,25 @@ namespace WorldChaseTag.UI
             if (saveNotificationTimer > 0f) saveNotificationTimer -= Time.deltaTime;
             Color baseCol = GUI.color;
 
+            float dpScale = Mathf.Clamp(Mathf.Min(sw / 1280f, sh / 720f), 1.0f, 2.2f);
+
             // ==========================================================
-            // 1. LEFT SIDE CONTROLS (Auto Run, Sprint, Joystick, Backpack)
+            // 1. LEFT SIDE CONTROLS (Auto Run, Sprint, Joystick)
             // ==========================================================
-            float joyRadius = 55f * joystickScale;
-            Vector2 joyCenter = new Vector2(125f * (joystickScale / 1.2f), sh - 125f * (joystickScale / 1.2f));
+            float joyRadius = 55f * dpScale * joystickScale;
+            Vector2 joyCenter = GetScreenPos(joyPosNorm);
             float joyDiameter = joyRadius * 2f;
+
+            // Sprint Anchor
+            Vector2 sprintAnchor = GetScreenPos(sprintPosNorm);
 
             // Auto Run Pill Button (above sprint)
             if (autoRunEnabled)
             {
-                float autoW = 94f;
-                float autoH = 26f;
-                float autoX = 35f;
-                float autoY = sh - 250f;
+                float autoW = 94f * dpScale;
+                float autoH = 26f * dpScale;
+                float autoX = sprintAnchor.x - autoW * 0.5f;
+                float autoY = sprintAnchor.y - 45f * dpScale - autoH * 0.5f;
                 Rect autoRect = new Rect(autoX, autoY, autoW, autoH);
                 GUI.color = isAutoRunLocked ? new Color(0.1f, 0.75f, 0.98f, 0.95f) : new Color(0.06f, 0.1f, 0.16f, buttonOpacity);
                 GUI.DrawTexture(autoRect, darkBoxTex);
@@ -982,7 +1050,7 @@ namespace WorldChaseTag.UI
                 GUI.DrawTexture(new Rect(autoX, autoY, autoW, 2), Texture2D.whiteTexture);
                 GUI.color = Color.white;
 
-                badgeStyle.fontSize = 10;
+                badgeStyle.fontSize = (int)(10f * dpScale);
                 badgeStyle.fontStyle = FontStyle.Bold;
                 badgeStyle.normal.textColor = isAutoRunLocked ? Color.black : Color.white;
                 GUI.Label(autoRect, isAutoRunLocked ? "🏃 Auto Run 🔒" : "🏃 Auto Run 🔓", badgeStyle);
@@ -996,9 +1064,9 @@ namespace WorldChaseTag.UI
             }
 
             // Sprint Circle Button (above joystick)
-            float sprintSize = 52f * buttonScale;
-            float sprintX = 35f;
-            float sprintY = sh - 205f;
+            float sprintSize = 52f * dpScale * buttonScale;
+            float sprintX = sprintAnchor.x - sprintSize * 0.5f;
+            float sprintY = sprintAnchor.y - sprintSize * 0.5f;
             Rect sprintRect = new Rect(sprintX, sprintY, sprintSize, sprintSize);
             bool isSprintingNow = (playerController != null && playerController.IsSprinting) || Input.GetKey(KeyCode.LeftShift);
 
@@ -1012,10 +1080,10 @@ namespace WorldChaseTag.UI
 
             if (showLabels)
             {
-                smallTextStyle.fontSize = 9;
+                smallTextStyle.fontSize = (int)(9f * dpScale);
                 smallTextStyle.alignment = TextAnchor.MiddleCenter;
                 smallTextStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(sprintX - 10, sprintY + sprintSize + 1, sprintSize + 20, 14), "Sprint", smallTextStyle);
+                GUI.Label(new Rect(sprintX - 10, sprintY + sprintSize + 1, sprintSize + 20, 14 * dpScale), "Sprint", smallTextStyle);
                 smallTextStyle.alignment = TextAnchor.MiddleLeft;
             }
 
@@ -1031,7 +1099,7 @@ namespace WorldChaseTag.UI
             GUI.DrawTexture(new Rect(joyCenter.x - joyRadius, joyCenter.y - joyRadius, joyDiameter, joyDiameter), ringTex);
 
             // Cardinal direction arrow indicators
-            badgeStyle.fontSize = (int)(13f * (joystickScale / 1.2f));
+            badgeStyle.fontSize = (int)(13f * dpScale * (joystickScale / 1.2f));
             badgeStyle.normal.textColor = new Color(0.6f, 0.85f, 1f, joystickOpacity);
             GUI.Label(new Rect(joyCenter.x - 10, joyCenter.y - joyRadius + 4, 20, 20), "▲", badgeStyle);
             GUI.Label(new Rect(joyCenter.x - 10, joyCenter.y + joyRadius - 22, 20, 20), "▼", badgeStyle);
@@ -1039,7 +1107,7 @@ namespace WorldChaseTag.UI
             GUI.Label(new Rect(joyCenter.x + joyRadius - 22, joyCenter.y - 10, 20, 20), "▶", badgeStyle);
 
             // Calculate Thumb Knob position (WASD or mouse drag or touch)
-            Vector2 knobPos = joyCenter;
+            Vector2 knobPos = joystickFingerId != -1 ? joystickPos : joyCenter;
             float inputX = Input.GetAxisRaw("Horizontal");
             float inputZ = Input.GetAxisRaw("Vertical");
 
@@ -1060,7 +1128,7 @@ namespace WorldChaseTag.UI
                     if (playerController != null) playerController.SetVirtualJoystick(norm, isSprintingNow);
                 }
             }
-            else if (Mathf.Abs(inputX) > 0.1f || Mathf.Abs(inputZ) > 0.1f)
+            else if (joystickFingerId == -1 && (Mathf.Abs(inputX) > 0.1f || Mathf.Abs(inputZ) > 0.1f))
             {
                 Vector2 dir = new Vector2(inputX, -inputZ).normalized * (joyRadius * 0.65f);
                 knobPos = joyCenter + dir;
@@ -1074,7 +1142,7 @@ namespace WorldChaseTag.UI
             }
 
             // Thumb Knob
-            float knobRadius = 24f * joystickScale;
+            float knobRadius = 24f * dpScale * joystickScale;
             float knobDiameter = knobRadius * 2f;
             GUI.color = new Color(0.12f, 0.55f, 0.90f, joystickOpacity);
             GUI.DrawTexture(new Rect(knobPos.x - knobRadius, knobPos.y - knobRadius, knobDiameter, knobDiameter), circleTex);
@@ -1083,61 +1151,43 @@ namespace WorldChaseTag.UI
 
             if (showLabels)
             {
-                smallTextStyle.fontSize = 10;
+                smallTextStyle.fontSize = (int)(10f * dpScale);
                 smallTextStyle.alignment = TextAnchor.MiddleCenter;
                 smallTextStyle.normal.textColor = new Color(0.7f, 0.88f, 1f);
-                GUI.Label(new Rect(joyCenter.x - 70, joyCenter.y + joyRadius + 4, 140, 16), "Joystick (Move)", smallTextStyle);
-                smallTextStyle.alignment = TextAnchor.MiddleLeft;
-            }
-
-            // Backpack Button (bottom-left)
-            float bpSize = 36f * buttonScale;
-            Rect bpRect = new Rect(28f, sh - 46f, bpSize, bpSize);
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
-            GUI.DrawTexture(bpRect, circleTex);
-            GUI.color = new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
-            GUI.DrawTexture(bpRect, ringTex);
-            badgeStyle.fontSize = (int)(bpSize * 0.45f);
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(bpRect, "🎒", badgeStyle);
-            if (showLabels)
-            {
-                smallTextStyle.fontSize = 8;
-                smallTextStyle.alignment = TextAnchor.MiddleCenter;
-                smallTextStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(28f - 10, sh - 14f, bpSize + 20, 12), "Backpack", smallTextStyle);
+                GUI.Label(new Rect(joyCenter.x - 70 * dpScale, joyCenter.y + joyRadius + 4, 140 * dpScale, 16 * dpScale), "Joystick (Move)", smallTextStyle);
                 smallTextStyle.alignment = TextAnchor.MiddleLeft;
             }
 
             // ==========================================================
-            // 2. BOTTOM PRESETS BAR (Matching Reference Image!)
+            // 2. BOTTOM PRESETS BAR (Safe-Area Anchored)
             // ==========================================================
-            float presetBarY = sh - 32f;
-            float barStartX = sw * 0.20f;
+            Rect safe = Screen.safeArea;
+            float presetBarY = sh - (sh - safe.yMax) - 34f * dpScale;
+            float barStartX = Mathf.Clamp(sw * 0.20f, safe.xMin + 10f, sw * 0.35f);
             
             // "Layout Presets (Example) v" dropdown pill
-            float dropdownW = 145f;
-            Rect dropRect = new Rect(barStartX, presetBarY, dropdownW, 22f);
+            float dropdownW = 145f * dpScale;
+            Rect dropRect = new Rect(barStartX, presetBarY, dropdownW, 22f * dpScale);
             GUI.color = new Color(0.06f, 0.10f, 0.16f, 0.90f);
             GUI.DrawTexture(dropRect, darkBoxTex);
             GUI.color = Color.white;
-            badgeStyle.fontSize = 9;
+            badgeStyle.fontSize = (int)(9f * dpScale);
             badgeStyle.fontStyle = FontStyle.Bold;
             badgeStyle.normal.textColor = new Color(0.8f, 0.9f, 1.0f);
             GUI.Label(dropRect, "Layout Presets (Example)  ▾", badgeStyle);
 
             // Preset pills
             string[] presetNames = { "Classic (Default)", "Two Thumb", "Left Hand", "Right Hand", "Large Buttons", "Compact" };
-            float curX = barStartX + dropdownW + 8f;
+            float curX = barStartX + dropdownW + 8f * dpScale;
             for (int p = 0; p < presetNames.Length; p++)
             {
-                float pillW = (p == 0) ? 105f : 88f;
-                Rect pRect = new Rect(curX, presetBarY, pillW, 22f);
+                float pillW = (p == 0) ? 105f * dpScale : 88f * dpScale;
+                Rect pRect = new Rect(curX, presetBarY, pillW, 22f * dpScale);
                 bool isSelected = (currentPresetIndex == p);
                 GUI.color = isSelected ? new Color(0.1f, 0.5f, 0.92f, 0.95f) : new Color(0.06f, 0.10f, 0.16f, 0.85f);
                 GUI.DrawTexture(pRect, darkBoxTex);
                 GUI.color = Color.white;
-                badgeStyle.fontSize = 9;
+                badgeStyle.fontSize = (int)(9f * dpScale);
                 badgeStyle.normal.textColor = isSelected ? Color.white : new Color(0.65f, 0.75f, 0.88f);
                 GUI.Label(pRect, presetNames[p], badgeStyle);
 
@@ -1147,15 +1197,15 @@ namespace WorldChaseTag.UI
                     WCTAudioSynthesizer.Instance?.PlayUIClick();
                 }
 
-                curX += pillW + 6f;
+                curX += pillW + 6f * dpScale;
             }
 
             // Plus (+) custom preset button
-            Rect plusRect = new Rect(curX, presetBarY, 24f, 22f);
+            Rect plusRect = new Rect(curX, presetBarY, 24f * dpScale, 22f * dpScale);
             GUI.color = new Color(0.06f, 0.10f, 0.16f, 0.85f);
             GUI.DrawTexture(plusRect, darkBoxTex);
             GUI.color = Color.white;
-            badgeStyle.fontSize = 11;
+            badgeStyle.fontSize = (int)(11f * dpScale);
             badgeStyle.normal.textColor = Color.white;
             GUI.Label(plusRect, "+", badgeStyle);
             if (Event.current.type == EventType.MouseDown && plusRect.Contains(Event.current.mousePosition))
@@ -1167,49 +1217,77 @@ namespace WorldChaseTag.UI
             // ==========================================================
             // 3. RIGHT SIDE ACTION CONTROLS (Catch/Tag, Jump, Slide, TPP)
             // ==========================================================
-            float rightAnchorX = sw - 30f;
-            float rightAnchorY = sh - 30f;
+            Vector2 actionAnchor = GetScreenPos(actionClusterPosNorm);
+            bool isLeftHanded = (currentPresetIndex == 2 || joyPosNorm.x > actionClusterPosNorm.x);
+            float anchorSign = isLeftHanded ? 1f : -1f;
+
+            bool isPlayerChaser = (playerController != null && playerController.CurrentRole == ChaseRole.Chaser);
 
             // Large Catch / Tag Button (Primary thumb position)
-            float catchSize = 82f * buttonScale;
-            float catchX = rightAnchorX - 100f * buttonScale;
-            float catchY = rightAnchorY - 140f * buttonScale;
+            float catchSize = 82f * dpScale * buttonScale;
+            float catchX = actionAnchor.x + anchorSign * (25f * dpScale) - catchSize * 0.5f;
+            float catchY = actionAnchor.y - 45f * dpScale - catchSize * 0.5f;
             Rect catchRect = new Rect(catchX, catchY, catchSize, catchSize);
-            bool catchPressed = Input.GetKey(KeyCode.C) || Input.GetMouseButton(0);
+            bool catchPressed = Input.GetKey(KeyCode.C) || (isPlayerChaser && Input.GetMouseButton(0));
 
-            // Pulsing orange highlight
-            GUI.color = catchPressed ? new Color(0.96f, 0.38f, 0.08f, buttonOpacity) : new Color(0.18f, 0.08f, 0.04f, buttonOpacity);
-            GUI.DrawTexture(catchRect, circleTex);
-            GUI.color = new Color(0.96f, 0.42f, 0.08f, buttonOpacity);
-            GUI.DrawTexture(catchRect, ringTex);
-
-            float pulse = (Mathf.Sin(Time.time * 7f) + 1f) * 0.5f;
-            GUI.color = new Color(0.96f, 0.45f, 0.08f, 0.25f + pulse * 0.35f);
-            GUI.DrawTexture(new Rect(catchX - 4, catchY - 4, catchSize + 8, catchSize + 8), ringTex);
-
-            badgeStyle.fontSize = (int)(catchSize * 0.42f);
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(catchX, catchY + catchSize * 0.20f, catchSize, catchSize * 0.45f), "✋", badgeStyle);
-
-            if (showLabels)
+            if (isPlayerChaser)
             {
-                smallTextStyle.fontSize = 10;
-                smallTextStyle.fontStyle = FontStyle.Bold;
-                smallTextStyle.alignment = TextAnchor.MiddleCenter;
-                smallTextStyle.normal.textColor = new Color(1.0f, 0.72f, 0.45f);
-                GUI.Label(new Rect(catchX - 15, catchY + catchSize + 2, catchSize + 30, 14), "Catch / Tag", smallTextStyle);
-                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+                // Active Chaser: Pulsing orange highlight
+                GUI.color = catchPressed ? new Color(0.96f, 0.38f, 0.08f, buttonOpacity) : new Color(0.18f, 0.08f, 0.04f, buttonOpacity);
+                GUI.DrawTexture(catchRect, circleTex);
+                GUI.color = new Color(0.96f, 0.42f, 0.08f, buttonOpacity);
+                GUI.DrawTexture(catchRect, ringTex);
+
+                float pulse = (Mathf.Sin(Time.time * 7f) + 1f) * 0.5f;
+                GUI.color = new Color(0.96f, 0.45f, 0.08f, 0.25f + pulse * 0.35f);
+                GUI.DrawTexture(new Rect(catchX - 4, catchY - 4, catchSize + 8, catchSize + 8), ringTex);
+
+                badgeStyle.fontSize = (int)(catchSize * 0.42f);
+                badgeStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(catchX, catchY + catchSize * 0.20f, catchSize, catchSize * 0.45f), "✋", badgeStyle);
+
+                if (showLabels)
+                {
+                    smallTextStyle.fontSize = (int)(10f * dpScale);
+                    smallTextStyle.fontStyle = FontStyle.Bold;
+                    smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                    smallTextStyle.normal.textColor = new Color(1.0f, 0.72f, 0.45f);
+                    GUI.Label(new Rect(catchX - 15, catchY + catchSize + 2, catchSize + 30, 14 * dpScale), "Catch / Tag", smallTextStyle);
+                    smallTextStyle.alignment = TextAnchor.MiddleLeft;
+                }
+
+                if (Event.current.type == EventType.MouseDown && catchRect.Contains(Event.current.mousePosition))
+                {
+                    if (playerController != null) playerController.TriggerCatchOrTag();
+                }
             }
-
-            if (Event.current.type == EventType.MouseDown && catchRect.Contains(Event.current.mousePosition))
+            else
             {
-                if (playerController != null) playerController.TriggerCatchOrTag();
+                // Evader Role: Catch button is disabled & dimmed (Catch is forbidden for Evader)
+                GUI.color = new Color(0.06f, 0.08f, 0.12f, buttonOpacity * 0.40f);
+                GUI.DrawTexture(catchRect, circleTex);
+                GUI.color = new Color(0.20f, 0.25f, 0.32f, buttonOpacity * 0.40f);
+                GUI.DrawTexture(catchRect, ringTex);
+
+                badgeStyle.fontSize = (int)(catchSize * 0.34f);
+                badgeStyle.normal.textColor = new Color(0.5f, 0.55f, 0.65f, 0.60f);
+                GUI.Label(new Rect(catchX, catchY + catchSize * 0.20f, catchSize, catchSize * 0.45f), "🔒", badgeStyle);
+
+                if (showLabels)
+                {
+                    smallTextStyle.fontSize = (int)(9f * dpScale);
+                    smallTextStyle.fontStyle = FontStyle.Normal;
+                    smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                    smallTextStyle.normal.textColor = new Color(0.5f, 0.6f, 0.7f, 0.60f);
+                    GUI.Label(new Rect(catchX - 15, catchY + catchSize + 2, catchSize + 30, 14 * dpScale), "Evader (Escape)", smallTextStyle);
+                    smallTextStyle.alignment = TextAnchor.MiddleLeft;
+                }
             }
 
             // Jump Button
-            float jumpSize = 64f * buttonScale;
-            float jumpX = rightAnchorX - 225f * buttonScale;
-            float jumpY = rightAnchorY - 85f * buttonScale;
+            float jumpSize = 66f * dpScale * buttonScale;
+            float jumpX = actionAnchor.x + anchorSign * (105f * dpScale) - jumpSize * 0.5f;
+            float jumpY = actionAnchor.y + 10f * dpScale - jumpSize * 0.5f;
             Rect jumpRect = new Rect(jumpX, jumpY, jumpSize, jumpSize);
             bool jumpPressed = Input.GetKey(KeyCode.Space);
 
@@ -1223,11 +1301,11 @@ namespace WorldChaseTag.UI
 
             if (showLabels)
             {
-                smallTextStyle.fontSize = 10;
+                smallTextStyle.fontSize = (int)(10f * dpScale);
                 smallTextStyle.fontStyle = FontStyle.Bold;
                 smallTextStyle.alignment = TextAnchor.MiddleCenter;
                 smallTextStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(jumpX - 10, jumpY + jumpSize + 2, jumpSize + 20, 14), "Jump", smallTextStyle);
+                GUI.Label(new Rect(jumpX - 10, jumpY + jumpSize + 2, jumpSize + 20, 14 * dpScale), "Jump", smallTextStyle);
                 smallTextStyle.alignment = TextAnchor.MiddleLeft;
             }
 
@@ -1237,9 +1315,9 @@ namespace WorldChaseTag.UI
             }
 
             // Slide Button
-            float slideSize = 64f * buttonScale;
-            float slideX = rightAnchorX - 150f * buttonScale;
-            float slideY = rightAnchorY - 72f * buttonScale;
+            float slideSize = 66f * dpScale * buttonScale;
+            float slideX = actionAnchor.x + anchorSign * (35f * dpScale) - slideSize * 0.5f;
+            float slideY = actionAnchor.y + 40f * dpScale - slideSize * 0.5f;
             Rect slideRect = new Rect(slideX, slideY, slideSize, slideSize);
             bool slidePressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftAlt);
 
@@ -1253,11 +1331,11 @@ namespace WorldChaseTag.UI
 
             if (showLabels)
             {
-                smallTextStyle.fontSize = 10;
+                smallTextStyle.fontSize = (int)(10f * dpScale);
                 smallTextStyle.fontStyle = FontStyle.Bold;
                 smallTextStyle.alignment = TextAnchor.MiddleCenter;
                 smallTextStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(slideX - 10, slideY + slideSize + 2, slideSize + 20, 14), "Slide", smallTextStyle);
+                GUI.Label(new Rect(slideX - 10, slideY + slideSize + 2, slideSize + 20, 14 * dpScale), "Slide", smallTextStyle);
                 smallTextStyle.alignment = TextAnchor.MiddleLeft;
             }
 
@@ -1266,51 +1344,10 @@ namespace WorldChaseTag.UI
                 if (playerController != null) playerController.TriggerSlideOrCrouch();
             }
 
-            // Mini Vertical Action Buttons (Climb Up ▲, Climb Down ▼, Prone 🤾)
-            float miniW = 34f * buttonScale;
-            float miniH = 26f * buttonScale;
-            float miniX = rightAnchorX - 68f;
-
-            // Climb Up ▲
-            Rect climbUpRect = new Rect(miniX, rightAnchorY - 110f, miniW, miniH);
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
-            GUI.DrawTexture(climbUpRect, darkBoxTex);
-            GUI.color = Color.white;
-            badgeStyle.fontSize = 11;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(climbUpRect, "▲", badgeStyle);
-            if (Event.current.type == EventType.MouseDown && climbUpRect.Contains(Event.current.mousePosition))
-            {
-                if (playerController != null) playerController.TriggerClimb();
-            }
-
-            // Climb Down ▼
-            Rect climbDownRect = new Rect(miniX, rightAnchorY - 80f, miniW, miniH);
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
-            GUI.DrawTexture(climbDownRect, darkBoxTex);
-            GUI.color = Color.white;
-            GUI.Label(climbDownRect, "▼", badgeStyle);
-            if (Event.current.type == EventType.MouseDown && climbDownRect.Contains(Event.current.mousePosition))
-            {
-                if (playerController != null) playerController.TriggerDrop();
-            }
-
-            // Prone / Dive
-            Rect proneRect = new Rect(miniX - 4f, rightAnchorY - 50f, miniW + 8f, miniH);
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
-            GUI.DrawTexture(proneRect, darkBoxTex);
-            GUI.color = Color.white;
-            badgeStyle.fontSize = 10;
-            GUI.Label(proneRect, "🤾", badgeStyle);
-            if (Event.current.type == EventType.MouseDown && proneRect.Contains(Event.current.mousePosition))
-            {
-                if (playerController != null) playerController.TriggerDive();
-            }
-
             // View (TPP/FPP) Toggle Button
-            float viewSize = 48f * buttonScale;
-            float viewX = rightAnchorX - 105f * buttonScale;
-            float viewY = rightAnchorY - 225f * buttonScale;
+            float viewSize = 50f * dpScale * buttonScale;
+            float viewX = actionAnchor.x + anchorSign * (25f * dpScale) - viewSize * 0.5f;
+            float viewY = actionAnchor.y - 115f * dpScale - viewSize * 0.5f;
             Rect viewRect = new Rect(viewX, viewY, viewSize, viewSize);
             bool isTPP = (playerController != null && playerController.IsThirdPerson);
 
@@ -1326,40 +1363,16 @@ namespace WorldChaseTag.UI
 
             if (showLabels)
             {
-                smallTextStyle.fontSize = 9;
+                smallTextStyle.fontSize = (int)(9f * dpScale);
                 smallTextStyle.alignment = TextAnchor.MiddleCenter;
                 smallTextStyle.normal.textColor = Color.white;
-                GUI.Label(new Rect(viewX - 20, viewY + viewSize + 2, viewSize + 40, 14), "View (TPP/FPP)", smallTextStyle);
+                GUI.Label(new Rect(viewX - 20, viewY + viewSize + 2, viewSize + 40, 14 * dpScale), "View (TPP/FPP)", smallTextStyle);
                 smallTextStyle.alignment = TextAnchor.MiddleLeft;
             }
 
             if (Event.current.type == EventType.MouseDown && viewRect.Contains(Event.current.mousePosition))
             {
                 if (playerController != null) playerController.TogglePerspective();
-            }
-
-            // Eye / Free Look Button
-            float eyeSize = 34f * buttonScale;
-            Rect eyeRect = new Rect(rightAnchorX - 44f, rightAnchorY - 220f, eyeSize, eyeSize);
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
-            GUI.DrawTexture(eyeRect, circleTex);
-            GUI.color = new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
-            GUI.DrawTexture(eyeRect, ringTex);
-            badgeStyle.fontSize = 13;
-            badgeStyle.normal.textColor = Color.white;
-            GUI.Label(eyeRect, "👁", badgeStyle);
-
-            // Quick Chat Button
-            Rect chatRect = new Rect(rightAnchorX - 44f, rightAnchorY - 175f, eyeSize, eyeSize);
-            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
-            GUI.DrawTexture(chatRect, circleTex);
-            GUI.color = new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
-            GUI.DrawTexture(chatRect, ringTex);
-            badgeStyle.fontSize = 12;
-            GUI.Label(chatRect, "💬", badgeStyle);
-            if (Event.current.type == EventType.MouseDown && chatRect.Contains(Event.current.mousePosition))
-            {
-                DisplayBanner("TEAM ALPHA: Keep pressure on the perimeter!", 2.0f);
             }
 
             // ==========================================================
@@ -1465,27 +1478,43 @@ namespace WorldChaseTag.UI
 
             curY += 36f;
 
-            // Sliders:
-            // 1. Joystick Size (50% - 150%)
-            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Size", ref joystickScale, 0.70f, 1.50f, "{0:0}%", 100f);
-
-            // 2. Joystick Opacity (20% - 100%)
-            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Opacity", ref joystickOpacity, 0.20f, 1.0f, "{0:0}%", 100f);
-
-            // 3. Button Size (50% - 150%)
-            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Button Size", ref buttonScale, 0.70f, 1.50f, "{0:0}%", 100f);
-
-            // 4. Button Opacity (20% - 100%)
-            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Button Opacity", ref buttonOpacity, 0.20f, 1.0f, "{0:0}%", 100f);
-
-            curY += 6f;
-
-            // Toggles:
-            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Show Labels", ref showLabels);
-            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Auto Run Button", ref autoRunEnabled);
-            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Quick Sprint (Double Tap)", ref quickSprintEnabled);
-            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Hold to Crouch", ref holdToCrouch);
-            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Tap to Slide", ref tapToSlide);
+            // Tabs content:
+            if (customizeTabIndex == 0) // Move Tab
+            {
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Size", ref joystickScale, 0.70f, 1.50f, "{0:0}%", 100f);
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Opacity", ref joystickOpacity, 0.20f, 1.0f, "{0:0}%", 100f);
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick X Position", ref joyPosNorm.x, 0.05f, 0.95f, "{0:0}%", 100f);
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Y Position", ref joyPosNorm.y, 0.20f, 0.95f, "{0:0}%", 100f);
+                DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Auto Run Button", ref autoRunEnabled);
+            }
+            else if (customizeTabIndex == 1) // Action Tab
+            {
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Button Size", ref buttonScale, 0.70f, 1.50f, "{0:0}%", 100f);
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Button Opacity", ref buttonOpacity, 0.20f, 1.0f, "{0:0}%", 100f);
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Actions X Position", ref actionClusterPosNorm.x, 0.05f, 0.95f, "{0:0}%", 100f);
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Actions Y Position", ref actionClusterPosNorm.y, 0.20f, 0.95f, "{0:0}%", 100f);
+                DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Tap to Slide", ref tapToSlide);
+                DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Show Labels", ref showLabels);
+            }
+            else if (customizeTabIndex == 2) // View Tab
+            {
+                DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Touch Look Sensitivity", ref touchLookSensitivity, 0.05f, 0.50f, "{0:0.00}", 1f);
+                DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Invert Y-Axis Look", ref invertTouchY);
+                if (playerController != null)
+                {
+                    playerController.TouchLookSensitivity = touchLookSensitivity;
+                    playerController.InvertY = invertTouchY;
+                }
+            }
+            else // Combat Tab
+            {
+                smallTextStyle.fontSize = 11;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(panelX + 16, curY, panelW - 32, 20), "Catch Range: 1.75m (Official WCT)", smallTextStyle);
+                curY += 24f;
+                GUI.Label(new Rect(panelX + 16, curY, panelW - 32, 20), "Catch button triggers for Chaser only.", smallTextStyle);
+                curY += 28f;
+            }
 
             curY += 10f;
 
@@ -1528,6 +1557,11 @@ namespace WorldChaseTag.UI
             GUI.color = Color.white;
             badgeStyle.normal.textColor = Color.white;
             GUI.Label(defRect, "🔄 Default", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && defRect.Contains(Event.current.mousePosition))
+            {
+                ResetToDefaults();
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
             if (Event.current.type == EventType.MouseDown && defRect.Contains(Event.current.mousePosition))
             {
                 ResetToDefaults();
@@ -1622,32 +1656,52 @@ namespace WorldChaseTag.UI
             switch (index)
             {
                 case 0: // Classic (Default)
+                    joyPosNorm = new Vector2(0.12f, 0.78f);
+                    actionClusterPosNorm = new Vector2(0.88f, 0.78f);
+                    sprintPosNorm = new Vector2(0.08f, 0.60f);
                     joystickScale = 1.20f;
                     joystickOpacity = 0.80f;
                     buttonScale = 1.10f;
                     buttonOpacity = 0.85f;
                     break;
                 case 1: // Two Thumb
+                    joyPosNorm = new Vector2(0.16f, 0.74f);
+                    actionClusterPosNorm = new Vector2(0.84f, 0.74f);
+                    sprintPosNorm = new Vector2(0.10f, 0.56f);
                     joystickScale = 1.30f;
                     joystickOpacity = 0.85f;
                     buttonScale = 1.25f;
                     buttonOpacity = 0.90f;
                     break;
-                case 2: // Left Hand
-                    joystickScale = 1.15f;
+                case 2: // Left Handed (Inverted: Joy on right, Actions on left!)
+                    joyPosNorm = new Vector2(0.86f, 0.78f);
+                    actionClusterPosNorm = new Vector2(0.14f, 0.78f);
+                    sprintPosNorm = new Vector2(0.92f, 0.60f);
+                    joystickScale = 1.20f;
                     buttonScale = 1.15f;
+                    joystickOpacity = 0.80f;
+                    buttonOpacity = 0.85f;
                     break;
-                case 3: // Right Hand
+                case 3: // Right Handed
+                    joyPosNorm = new Vector2(0.11f, 0.78f);
+                    actionClusterPosNorm = new Vector2(0.89f, 0.78f);
+                    sprintPosNorm = new Vector2(0.08f, 0.60f);
                     joystickScale = 1.20f;
                     buttonScale = 1.10f;
                     break;
                 case 4: // Large Buttons
+                    joyPosNorm = new Vector2(0.14f, 0.76f);
+                    actionClusterPosNorm = new Vector2(0.86f, 0.76f);
+                    sprintPosNorm = new Vector2(0.08f, 0.56f);
                     joystickScale = 1.35f;
-                    buttonScale = 1.40f;
+                    buttonScale = 1.35f;
                     joystickOpacity = 0.90f;
                     buttonOpacity = 0.90f;
                     break;
                 case 5: // Compact
+                    joyPosNorm = new Vector2(0.10f, 0.82f);
+                    actionClusterPosNorm = new Vector2(0.90f, 0.82f);
+                    sprintPosNorm = new Vector2(0.06f, 0.64f);
                     joystickScale = 0.90f;
                     buttonScale = 0.85f;
                     joystickOpacity = 0.75f;
@@ -1658,10 +1712,19 @@ namespace WorldChaseTag.UI
 
         private void SaveLayoutSettings()
         {
+            PlayerPrefs.SetFloat("WCT_JoyNormX", joyPosNorm.x);
+            PlayerPrefs.SetFloat("WCT_JoyNormY", joyPosNorm.y);
+            PlayerPrefs.SetFloat("WCT_ActionNormX", actionClusterPosNorm.x);
+            PlayerPrefs.SetFloat("WCT_ActionNormY", actionClusterPosNorm.y);
+            PlayerPrefs.SetFloat("WCT_SprintNormX", sprintPosNorm.x);
+            PlayerPrefs.SetFloat("WCT_SprintNormY", sprintPosNorm.y);
             PlayerPrefs.SetFloat("WCT_JoyScale", joystickScale);
             PlayerPrefs.SetFloat("WCT_JoyOpacity", joystickOpacity);
             PlayerPrefs.SetFloat("WCT_BtnScale", buttonScale);
             PlayerPrefs.SetFloat("WCT_BtnOpacity", buttonOpacity);
+            PlayerPrefs.SetFloat("WCT_TouchSens", touchLookSensitivity);
+            PlayerPrefs.SetInt("WCT_InvertTouchY", invertTouchY ? 1 : 0);
+            PlayerPrefs.SetInt("WCT_PresetIndex", currentPresetIndex);
             PlayerPrefs.SetInt("WCT_ShowLabels", showLabels ? 1 : 0);
             PlayerPrefs.SetInt("WCT_AutoRun", autoRunEnabled ? 1 : 0);
             PlayerPrefs.SetInt("WCT_TapSlide", tapToSlide ? 1 : 0);
@@ -1670,23 +1733,41 @@ namespace WorldChaseTag.UI
 
         private void LoadLayoutSettings()
         {
+            joyPosNorm.x = PlayerPrefs.GetFloat("WCT_JoyNormX", 0.12f);
+            joyPosNorm.y = PlayerPrefs.GetFloat("WCT_JoyNormY", 0.78f);
+            actionClusterPosNorm.x = PlayerPrefs.GetFloat("WCT_ActionNormX", 0.88f);
+            actionClusterPosNorm.y = PlayerPrefs.GetFloat("WCT_ActionNormY", 0.78f);
+            sprintPosNorm.x = PlayerPrefs.GetFloat("WCT_SprintNormX", 0.08f);
+            sprintPosNorm.y = PlayerPrefs.GetFloat("WCT_SprintNormY", 0.60f);
             joystickScale = PlayerPrefs.GetFloat("WCT_JoyScale", 1.20f);
             joystickOpacity = PlayerPrefs.GetFloat("WCT_JoyOpacity", 0.80f);
             buttonScale = PlayerPrefs.GetFloat("WCT_BtnScale", 1.10f);
             buttonOpacity = PlayerPrefs.GetFloat("WCT_BtnOpacity", 0.85f);
+            touchLookSensitivity = PlayerPrefs.GetFloat("WCT_TouchSens", 0.18f);
+            invertTouchY = PlayerPrefs.GetInt("WCT_InvertTouchY", 0) == 1;
+            currentPresetIndex = PlayerPrefs.GetInt("WCT_PresetIndex", 0);
             showLabels = PlayerPrefs.GetInt("WCT_ShowLabels", 1) == 1;
             autoRunEnabled = PlayerPrefs.GetInt("WCT_AutoRun", 1) == 1;
             tapToSlide = PlayerPrefs.GetInt("WCT_TapSlide", 1) == 1;
+
+            if (playerController != null)
+            {
+                playerController.TouchLookSensitivity = touchLookSensitivity;
+                playerController.InvertY = invertTouchY;
+            }
         }
 
         private void ResetToDefaults()
         {
             ApplyPreset(0);
+            touchLookSensitivity = 0.18f;
+            invertTouchY = false;
             showLabels = true;
             autoRunEnabled = true;
             quickSprintEnabled = true;
             holdToCrouch = false;
             tapToSlide = true;
+            SaveLayoutSettings();
         }
 
         // ==============================================================

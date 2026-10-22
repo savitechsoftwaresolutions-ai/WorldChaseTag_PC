@@ -9,8 +9,8 @@ namespace WorldChaseTag.Combat
         public static WCTTagSystem Instance { get; private set; }
 
         [Header("Tag Reach & Detection")]
-        [SerializeField] private float tagReachDistance = 2.2f;
-        [SerializeField] private float tagSweepRadius = 0.55f;
+        [SerializeField] private float tagReachDistance = 1.75f;
+        [SerializeField] private float tagSweepRadius = 0.35f;
         [SerializeField] private LayerMask hitLayers = ~0;
         [SerializeField] private LayerMask obstacleOcclusionLayers = ~0;
 
@@ -73,7 +73,7 @@ namespace WorldChaseTag.Combat
                     Vector3 directionToEvader = (hit.point - origin).normalized;
                     float distanceToHit = Vector3.Distance(origin, hit.point);
 
-                    RaycastHit[] occludes = Physics.RaycastAll(origin, directionToEvader, distanceToHit - 0.1f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore);
+                    RaycastHit[] occludes = Physics.RaycastAll(origin, directionToEvader, distanceToHit - 0.08f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore);
                     bool blocked = false;
                     foreach (var occ in occludes)
                     {
@@ -93,27 +93,27 @@ namespace WorldChaseTag.Combat
                 }
             }
 
-            // 2. Proximity check fallback for near-contact within forward 160-degree arc
+            // 2. Proximity check fallback for near-contact within forward arc
             if (activeEvaderTransform != null && activeChaserTransform != null)
             {
                 Vector3 chaserPos = activeChaserTransform.position;
                 Vector3 evaderPos = activeEvaderTransform.position;
                 float dist = Vector3.Distance(chaserPos, evaderPos);
 
-                if (dist <= tagReachDistance + 0.3f)
+                if (dist <= tagReachDistance)
                 {
                     Vector3 toEvader = evaderPos - chaserPos;
                     toEvader.y = 0f;
                     float angle = Vector3.Angle(activeChaserTransform.forward, toEvader.normalized);
 
-                    // Must be within 80 degrees of forward direction
-                    if (angle <= 80f)
+                    // Must be within 65 degrees of forward direction
+                    if (angle <= 65f)
                     {
                         Vector3 losOrigin = chaserPos + Vector3.up * 1.0f;
                         Vector3 losTarget = evaderPos + Vector3.up * 1.0f;
                         Vector3 losDir = losTarget - losOrigin;
 
-                        RaycastHit[] occludes = Physics.RaycastAll(losOrigin, losDir.normalized, losDir.magnitude - 0.1f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore);
+                        RaycastHit[] occludes = Physics.RaycastAll(losOrigin, losDir.normalized, losDir.magnitude - 0.08f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore);
                         bool blocked = false;
                         foreach (var occ in occludes)
                         {

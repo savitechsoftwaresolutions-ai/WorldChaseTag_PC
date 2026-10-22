@@ -14,45 +14,48 @@ namespace WorldChaseTag.Movement
         [SerializeField] private Camera playerCamera;
         [SerializeField] private Transform cameraHolder;
         [SerializeField] private float mouseSensitivity = 2.2f;
-        [SerializeField] private float minPitch = -85f;
-        [SerializeField] private float maxPitch = 85f;
+        [SerializeField] private float touchLookSensitivity = 0.18f;
+        [SerializeField] private float minPitch = -80f;
+        [SerializeField] private float maxPitch = 80f;
         [SerializeField] private bool invertY = false;
 
-        [Header("Movement Speeds")]
-        [SerializeField] private float walkSpeed = 5.2f;
-        [SerializeField] private float sprintSpeed = 8.5f;
-        [SerializeField] private float crouchSpeed = 2.8f;
-        [SerializeField] private float slideInitialSpeed = 10.5f;
-        [SerializeField] private float acceleration = 24f;
-        [SerializeField] private float deceleration = 20f;
-        [SerializeField] private float airControlMultiplier = 0.5f;
+        [Header("Movement Speeds (Configurable Human Athletics)")]
+        [SerializeField] private float walkSpeed = 2.4f;
+        [SerializeField] private float jogSpeed = 3.6f;
+        [SerializeField] private float sprintSpeed = 6.2f;
+        [SerializeField] private float crouchSpeed = 1.6f;
+        [SerializeField] private float slideInitialSpeed = 6.8f;
+        [SerializeField] private float slideDuration = 0.65f;
+        [SerializeField] private float acceleration = 14f;
+        [SerializeField] private float deceleration = 14f;
+        [SerializeField] private float airControlMultiplier = 0.35f;
 
         [Header("Jump & Physics")]
-        [SerializeField] private float jumpHeight = 1.35f;
-        [SerializeField] private float gravity = -24f;
+        [SerializeField] private float jumpHeight = 0.85f;
+        [SerializeField] private float gravity = -20f;
         [SerializeField] private float coyoteTimeDuration = 0.15f;
         [SerializeField] private float jumpBufferDuration = 0.15f;
 
         [Header("Parkour - Vault & Mantle")]
         [SerializeField] private LayerMask obstacleLayer = ~0;
         [SerializeField] private float maxVaultHeight = 1.25f;
-        [SerializeField] private float minVaultHeight = 0.45f;
+        [SerializeField] private float minVaultHeight = 0.40f;
         [SerializeField] private float vaultDistance = 2.2f;
-        [SerializeField] private float vaultDuration = 0.35f;
+        [SerializeField] private float vaultDuration = 0.38f;
         [SerializeField] private float maxMantleHeight = 2.2f;
         [SerializeField] private float minMantleHeight = 1.3f;
         [SerializeField] private float mantleDuration = 0.45f;
 
         [Header("Stamina")]
         [SerializeField] private float maxStamina = 100f;
-        [SerializeField] private float staminaDrainRate = 22f;
-        [SerializeField] private float staminaRegenRate = 26f;
-        [SerializeField] private float exhaustionThreshold = 25f;
+        [SerializeField] private float staminaDrainRate = 18f;
+        [SerializeField] private float staminaRegenRate = 22f;
+        [SerializeField] private float exhaustionThreshold = 20f;
 
         [Header("Head Bob & Dynamic FOV")]
         [SerializeField] private bool enableHeadBob = true;
         [SerializeField] private float bobIntensity = 1f;
-        [SerializeField] private float baseFov = 75f;
+        [SerializeField] private float baseFov = 78f;
         [SerializeField] private float sprintFov = 86f;
         [SerializeField] private float fovTransitionSpeed = 8f;
 
@@ -63,6 +66,7 @@ namespace WorldChaseTag.Movement
         // Mobile touch & virtual inputs
         private Vector2 virtualMoveInput = Vector2.zero;
         private bool virtualSprint = false;
+        private float slideTimer = 0f;
         private Vector2 touchLookDelta = Vector2.zero;
 
         // Runtime states
@@ -103,12 +107,19 @@ namespace WorldChaseTag.Movement
         }
         public bool ControlsEnabled { get; set; } = true;
         public float StaminaNormalized => currentStamina / maxStamina;
-        public bool IsSprinting => (Input.GetKey(KeyCode.LeftShift) || virtualSprint) && horizontalVelocity.magnitude > walkSpeed + 0.5f && !isExhausted;
+        public bool IsSprinting => (Input.GetKey(KeyCode.LeftShift) || virtualSprint || isAutoRun) && horizontalVelocity.magnitude > jogSpeed + 0.2f && !isExhausted;
         public bool IsVaulting => isVaulting;
         public bool IsMantling => isMantling;
         public bool IsCrouching => isCrouching;
         public bool IsSliding => isSliding;
         public Camera PlayerCamera => playerCamera;
+
+        public float WalkSpeed => walkSpeed;
+        public float JogSpeed => jogSpeed;
+        public float SprintSpeed => sprintSpeed;
+        public float TouchLookSensitivity { get => touchLookSensitivity; set => touchLookSensitivity = value; }
+        public bool InvertY { get => invertY; set => invertY = value; }
+        public float MouseSensitivity { get => mouseSensitivity; set => mouseSensitivity = value; }
 
         public bool EnableGyroscope
         {
@@ -131,7 +142,7 @@ namespace WorldChaseTag.Movement
 
         public void AddTouchLookDelta(Vector2 delta)
         {
-            touchLookDelta += delta;
+            touchLookDelta += delta * (touchLookSensitivity / 0.18f);
         }
 
         public void TriggerJump()
@@ -172,13 +183,20 @@ namespace WorldChaseTag.Movement
             isThirdPerson = tpp;
             if (cameraHolder != null)
             {
-                cameraHolder.localPosition = isThirdPerson ? new Vector3(0.35f, 1.75f, -2.6f) : defaultCameraLocalPos;
+                if (isThirdPerson)
+                {
+                    cameraHolder.position = transform.TransformPoint(new Vector3(0.25f, 1.70f, -2.5f));
+                }
+                else
+                {
+                    cameraHolder.localPosition = defaultCameraLocalPos;
+                }
             }
 
             var fppArms = GetComponentInChildren<WorldChaseTag.Visuals.WCTFPPArms>(true);
             if (fppArms != null)
             {
-                fppArms.gameObject.SetActive(!isThirdPerson);
+                fppArms.SetArmsVisible(!isThirdPerson);
             }
 
             var athleteVisuals = GetComponent<WorldChaseTag.Visuals.WCTAthleteVisuals>();
@@ -227,6 +245,12 @@ namespace WorldChaseTag.Movement
                 cameraHolder = playerCamera.transform;
             }
 
+            if (playerCamera != null)
+            {
+                playerCamera.nearClipPlane = 0.02f;
+                playerCamera.fieldOfView = baseFov;
+            }
+
             if (cameraHolder != null)
             {
                 defaultCameraLocalPos = cameraHolder.localPosition;
@@ -249,6 +273,8 @@ namespace WorldChaseTag.Movement
 
         private void Start()
         {
+            SetPerspective(isThirdPerson);
+
             if (!Application.isMobilePlatform)
             {
                 bool menuOpen = (WorldChaseTag.UI.WCTMenuController.Instance != null && WorldChaseTag.UI.WCTMenuController.Instance.IsMenuOpen);
@@ -511,14 +537,21 @@ namespace WorldChaseTag.Movement
                 inputDir = Vector3.zero;
             }
 
-            // Determine target speed
-            float targetSpeed = walkSpeed;
+            // Determine target speed based on human athletic gait targets
+            float targetSpeed = jogSpeed;
 
             if (isSliding)
             {
-                // Slide speed decaying
-                horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, Vector3.zero, deceleration * 0.8f * Time.deltaTime);
-                if (horizontalVelocity.magnitude <= crouchSpeed)
+                // Smooth progressive slide deceleration
+                slideTimer += Time.deltaTime;
+                float slideFrac = Mathf.Clamp01(slideTimer / slideDuration);
+                float currentSlideSpeed = Mathf.Lerp(slideInitialSpeed, crouchSpeed, slideFrac);
+                if (horizontalVelocity.sqrMagnitude > 0.01f)
+                {
+                    horizontalVelocity = horizontalVelocity.normalized * currentSlideSpeed;
+                }
+
+                if (slideFrac >= 1.0f)
                 {
                     isSliding = false;
                     SetCrouch(Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftAlt));
@@ -530,9 +563,38 @@ namespace WorldChaseTag.Movement
                 {
                     targetSpeed = crouchSpeed;
                 }
-                else if ((Input.GetKey(KeyCode.LeftShift) || virtualSprint) && !isExhausted && inputDir.magnitude > 0.1f)
+                else if (virtualMoveInput.sqrMagnitude > 0.001f)
                 {
-                    targetSpeed = sprintSpeed;
+                    // Touch joystick magnitude scaling:
+                    // 0.0 - 0.50: Walk speed (0 - 2.4 m/s)
+                    // 0.50 - 0.85: Jog speed (2.4 - 3.6 m/s)
+                    // > 0.85 or Sprint Button: Sprint speed (6.2 m/s)
+                    float mag = Mathf.Clamp01(virtualMoveInput.magnitude);
+                    if (mag < 0.50f)
+                    {
+                        targetSpeed = Mathf.Lerp(0.8f, walkSpeed, mag / 0.50f);
+                    }
+                    else if (mag < 0.85f && !virtualSprint)
+                    {
+                        targetSpeed = Mathf.Lerp(walkSpeed, jogSpeed, (mag - 0.50f) / 0.35f);
+                    }
+                    else
+                    {
+                        bool wantsSprint = virtualSprint || isAutoRun || Input.GetKey(KeyCode.LeftShift);
+                        targetSpeed = (wantsSprint && !isExhausted) ? sprintSpeed : jogSpeed;
+                    }
+                }
+                else
+                {
+                    // Desktop Keyboard WASD
+                    if ((isAutoRun || Input.GetKey(KeyCode.LeftShift)) && !isExhausted)
+                    {
+                        targetSpeed = sprintSpeed;
+                    }
+                    else
+                    {
+                        targetSpeed = jogSpeed;
+                    }
                 }
 
                 Vector3 targetVelocity = inputDir * targetSpeed;
@@ -748,6 +810,7 @@ namespace WorldChaseTag.Movement
         private void StartSlide()
         {
             isSliding = true;
+            slideTimer = 0f;
             SetCrouch(true);
             horizontalVelocity = transform.forward * slideInitialSpeed;
             OnParkourActionTriggered?.Invoke("SLIDE");
@@ -799,42 +862,70 @@ namespace WorldChaseTag.Movement
 
         private void HandleCameraEffects()
         {
-            if (playerCamera == null) return;
+            if (playerCamera == null || cameraHolder == null) return;
 
             // Dynamic FOV
             float targetFov = IsSprinting ? sprintFov : baseFov;
             playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFov, fovTransitionSpeed * Time.deltaTime);
 
-            // Head Bobbing
-            if (enableHeadBob && controller.isGrounded && !isVaulting && !isMantling && !isSliding)
+            if (isThirdPerson)
             {
-                float speed = horizontalVelocity.magnitude;
-                if (speed > 0.5f)
+                // Third Person Camera Collision Avoidance (Spherecast pull-forward)
+                Vector3 headWorld = transform.position + Vector3.up * 1.55f;
+                Vector3 targetWorld = transform.TransformPoint(new Vector3(0.25f, 1.70f, -2.5f));
+                Vector3 camRay = targetWorld - headWorld;
+                float maxDist = camRay.magnitude;
+
+                if (Physics.SphereCast(headWorld, 0.20f, camRay.normalized, out RaycastHit camHit, maxDist, obstacleLayer, QueryTriggerInteraction.Ignore))
                 {
-                    bobTimer += Time.deltaTime * speed * 2.2f;
-                    float bobY = Mathf.Sin(bobTimer) * 0.05f * bobIntensity;
-                    float bobX = Mathf.Cos(bobTimer * 0.5f) * 0.03f * bobIntensity;
-                    Vector3 targetPos = (isCrouching ? defaultCameraLocalPos * 0.6f : defaultCameraLocalPos) + new Vector3(bobX, bobY, 0f);
-                    cameraHolder.localPosition = Vector3.Lerp(cameraHolder.localPosition, targetPos, 14f * Time.deltaTime);
+                    float safeDist = Mathf.Clamp(camHit.distance - 0.22f, 0.5f, maxDist);
+                    Vector3 safeWorldPos = headWorld + camRay.normalized * safeDist;
+                    cameraHolder.position = Vector3.Lerp(cameraHolder.position, safeWorldPos, 20f * Time.deltaTime);
                 }
                 else
                 {
-                    bobTimer = 0f;
+                    cameraHolder.position = Vector3.Lerp(cameraHolder.position, targetWorld, 15f * Time.deltaTime);
+                }
+            }
+            else
+            {
+                // First Person Mode - Head Bobbing & Eye Level Maintenance
+                if (enableHeadBob && controller.isGrounded && !isVaulting && !isMantling && !isSliding)
+                {
+                    float speed = horizontalVelocity.magnitude;
+                    if (speed > 0.5f)
+                    {
+                        bobTimer += Time.deltaTime * speed * 2.2f;
+                        float bobY = Mathf.Sin(bobTimer) * 0.035f * bobIntensity;
+                        float bobX = Mathf.Cos(bobTimer * 0.5f) * 0.02f * bobIntensity;
+                        Vector3 targetPos = (isCrouching ? defaultCameraLocalPos * 0.6f : defaultCameraLocalPos) + new Vector3(bobX, bobY, 0f);
+                        cameraHolder.localPosition = Vector3.Lerp(cameraHolder.localPosition, targetPos, 14f * Time.deltaTime);
+                    }
+                    else
+                    {
+                        bobTimer = 0f;
+                        Vector3 targetPos = isCrouching ? defaultCameraLocalPos * 0.6f : defaultCameraLocalPos;
+                        cameraHolder.localPosition = Vector3.Lerp(cameraHolder.localPosition, targetPos, 10f * Time.deltaTime);
+                    }
+                }
+                else
+                {
                     Vector3 targetPos = isCrouching ? defaultCameraLocalPos * 0.6f : defaultCameraLocalPos;
-                    cameraHolder.localPosition = Vector3.Lerp(cameraHolder.localPosition, targetPos, 10f * Time.deltaTime);
+                    cameraHolder.localPosition = Vector3.Lerp(cameraHolder.localPosition, targetPos, 12f * Time.deltaTime);
                 }
             }
         }
 
         private void AttemptTagAction()
         {
+            // The Catch button must not trigger while playing Evader!
+            if (currentRole != ChaseRole.Chaser) return;
+            if (WCTMatchController.Instance == null || !WCTMatchController.Instance.IsChaseActive) return;
+
             OnParkourActionTriggered?.Invoke("TAG_ATTEMPT");
 
-            // Athletic forward lunge burst when Chaser strikes for a tag
-            if (currentRole == ChaseRole.Chaser)
-            {
-                horizontalVelocity += transform.forward * 3.2f;
-            }
+            // Controlled athletic forward lunge burst when Chaser strikes for a tag
+            horizontalVelocity += transform.forward * 1.8f;
 
             if (WCTTagSystem.Instance != null)
             {
