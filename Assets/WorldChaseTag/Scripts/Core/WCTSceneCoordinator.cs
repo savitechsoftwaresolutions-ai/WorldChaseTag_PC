@@ -185,6 +185,10 @@ namespace WorldChaseTag.Core
             cc.height = 1.8f;
             cc.radius = 0.35f;
             cc.center = new Vector3(0f, 0.9f, 0f);
+            cc.stepOffset = 0.45f;
+            cc.slopeLimit = 60f;
+            cc.skinWidth = 0.015f;
+            cc.minMoveDistance = 0f;
 
             // Camera Holder
             GameObject camHolder = new GameObject("CameraHolder");
@@ -192,6 +196,10 @@ namespace WorldChaseTag.Core
             camHolder.transform.localPosition = new Vector3(0f, 1.6f, 0f);
 
             Camera cam = camHolder.AddComponent<Camera>();
+            cam.fieldOfView = 75f;
+            cam.nearClipPlane = 0.02f;
+            cam.allowHDR = true;
+            cam.allowMSAA = true;
             camHolder.AddComponent<AudioListener>();
             camHolder.AddComponent<WCTFPPArms>();
 

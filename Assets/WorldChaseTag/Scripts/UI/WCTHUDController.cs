@@ -933,12 +933,12 @@ namespace WorldChaseTag.UI
             float actionY = sh - 105f;
 
             bool spacePressed = Input.GetKey(KeyCode.Space);
-            bool ctrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
-            bool fPressed = Input.GetKey(KeyCode.F);
+            bool ctrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftAlt);
+            bool cPressed = Input.GetKey(KeyCode.C) || Input.GetKey(KeyCode.F) || Input.GetMouseButton(0);
 
             DrawPCActionBadge(rightX, actionY, 58f, "🏃", "JUMP / VAULT", "[SPACE]", new Color(0.12f, 0.45f, 0.85f), spacePressed);
-            DrawPCActionBadge(rightX + spacing, actionY, 58f, "🤸", "SLIDE / DUCK", "[C / CTRL]", new Color(0.2f, 0.7f, 0.6f), ctrlPressed);
-            DrawPCActionBadge(rightX + spacing * 2, actionY - 4, 66f, "✋", "TAG / CATCH", "[KEY F]", new Color(0.96f, 0.38f, 0.08f), fPressed, true);
+            DrawPCActionBadge(rightX + spacing, actionY, 58f, "🤸", "SLIDE / DUCK", "[CTRL]", new Color(0.2f, 0.7f, 0.6f), ctrlPressed);
+            DrawPCActionBadge(rightX + spacing * 2, actionY - 4, 66f, "✋", "TAG / CATCH", "[KEY C]", new Color(0.96f, 0.38f, 0.08f), cPressed, true);
         }
 
         private void DrawPCKeycap(float x, float y, float w, float h, string key, bool pressed)
@@ -1085,14 +1085,14 @@ namespace WorldChaseTag.UI
 
             // 2. Slide / Crouch Button
             float slideSize = 64f;
-            if (DrawInteractiveActionButton(rightX + spacing, actionY + 6, slideSize, "🤸", "SLIDE / DUCK", "C / Ctrl", new Color(0.2f, 0.7f, 0.6f)))
+            if (DrawInteractiveActionButton(rightX + spacing, actionY + 6, slideSize, "🤸", "SLIDE / DUCK", "Ctrl", new Color(0.2f, 0.7f, 0.6f)))
             {
                 if (playerController != null) playerController.TriggerSlideOrCrouch();
             }
 
             // 3. Catch / Tag Action Button (Larger, High-Priority, Vibrant Orange)
             float tagSize = 76f;
-            if (DrawInteractiveActionButton(rightX + spacing * 2 - 4, actionY - 2, tagSize, "✋", "CATCH / TAG", "F / Tap", new Color(0.96f, 0.38f, 0.08f), true))
+            if (DrawInteractiveActionButton(rightX + spacing * 2 - 4, actionY - 2, tagSize, "✋", "CATCH / TAG", "C / Click", new Color(0.96f, 0.38f, 0.08f), true))
             {
                 if (playerController != null) playerController.TriggerCatchOrTag();
             }

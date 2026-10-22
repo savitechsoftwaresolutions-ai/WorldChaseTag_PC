@@ -122,19 +122,34 @@ namespace WorldChaseTag.Arena
 
         private void CreatePerimeterSection(string name, Vector3 pos, Vector3 size, Material bannerMat)
         {
+            float pHeight = 3.2f;
+            Vector3 barrierPos = new Vector3(pos.x, pHeight * 0.5f, pos.z);
+            Vector3 barrierScale = new Vector3(size.x, pHeight, size.z);
+
             GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wall.name = name;
+            wall.tag = "Boundary";
             wall.transform.parent = transform;
-            wall.transform.localPosition = pos;
-            wall.transform.localScale = size;
+            wall.transform.localPosition = barrierPos;
+            wall.transform.localScale = barrierScale;
             ApplyMaterial(wall, bannerMat);
 
-            // Steel Top Handrail
+            // Sturdy thick collision volume (depth extended outwards) so characters cannot tunnel or clip through
+            BoxCollider col = wall.GetComponent<BoxCollider>();
+            if (col != null)
+            {
+                float thickX = size.x <= 0.5f ? 4.0f : 1.0f;
+                float thickZ = size.z <= 0.5f ? 4.0f : 1.0f;
+                col.size = new Vector3(thickX, 1.4f, thickZ);
+            }
+
+            // Steel Top Handrail (Visual only, NO collider to prevent head/jumping snags!)
             GameObject handrail = GameObject.CreatePrimitive(PrimitiveType.Cube);
             handrail.name = name + "_TopRail";
             handrail.transform.parent = wall.transform;
-            handrail.transform.localPosition = new Vector3(0f, 0.52f, 0f);
-            handrail.transform.localScale = new Vector3(1.02f, 0.08f, 1.25f);
+            handrail.transform.localPosition = new Vector3(0f, 0.505f, 0f);
+            handrail.transform.localScale = new Vector3(1.01f, 0.04f, 1.15f);
+            DestroyImmediate(handrail.GetComponent<Collider>());
             ApplyMaterial(handrail, WCTMaterialPalette.GetBlackSteelPipeMaterial());
         }
 

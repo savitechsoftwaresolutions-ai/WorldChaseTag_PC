@@ -69,6 +69,9 @@ namespace WorldChaseTag.Movement
         private CharacterController controller;
         private Vector3 currentVelocity;
         private Vector3 horizontalVelocity;
+        private Vector3 wallSlideNormal = Vector3.zero;
+        private bool hasWallContact = false;
+        private float lastWallContactTime = 0f;
         private float verticalVelocity;
         private float cameraPitch;
         private float coyoteTimer;
@@ -160,7 +163,7 @@ namespace WorldChaseTag.Movement
             controller = GetComponent<CharacterController>();
             controller.stepOffset = 0.5f;
             controller.slopeLimit = 60f;
-            controller.skinWidth = 0.03f;
+            controller.skinWidth = 0.015f;
             controller.minMoveDistance = 0f;
             defaultControllerHeight = controller.height;
 
@@ -296,6 +299,7 @@ namespace WorldChaseTag.Movement
             HandleMovement();
             HandleStamina();
             HandleCameraEffects();
+            EnforceArenaBoundaries();
         }
 
         private void HandleMouseLook()
@@ -344,8 +348,8 @@ namespace WorldChaseTag.Movement
                 jumpBufferTimer = jumpBufferDuration;
             }
 
-            // Crouch / Slide
-            if (Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.C))
+            // Crouch / Slide (LeftControl or LeftAlt)
+            if (Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.LeftAlt))
             {
                 if (IsSprinting && controller.isGrounded && !isSliding)
                 {
@@ -356,7 +360,7 @@ namespace WorldChaseTag.Movement
                     SetCrouch(true);
                 }
             }
-            else if (Input.GetKeyUp(KeyCode.LeftControl) || Input.GetKeyUp(KeyCode.C))
+            else if (Input.GetKeyUp(KeyCode.LeftControl) || Input.GetKeyUp(KeyCode.LeftAlt))
             {
                 if (!isSliding)
                 {
@@ -364,8 +368,8 @@ namespace WorldChaseTag.Movement
                 }
             }
 
-            // Tag Attempt (Key F)
-            if (Input.GetKeyDown(KeyCode.F))
+            // Catch / Tag Attempt on KEY C (and secondary Key F / Left Mouse Click)
+            if (Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.F) || Input.GetMouseButtonDown(0))
             {
                 AttemptTagAction();
             }
@@ -385,7 +389,55 @@ namespace WorldChaseTag.Movement
                 inputZ = Mathf.Clamp(inputZ, -1f, 1f);
             }
 
-            Vector3 inputDir = (transform.right * inputX + transform.forward * inputZ).normalized;
+            Vector3 inputDir = (transform.right * inputX + transform.forward * inputZ);
+            if (inputDir.sqrMagnitude > 0.001f)
+            {
+                inputDir = inputDir.normalized;
+
+                // 1. Deflect input using recent wall collision normal from OnControllerColliderHit
+                if (hasWallContact && (Time.time - lastWallContactTime < 0.25f) && wallSlideNormal.sqrMagnitude > 0.01f)
+                {
+                    float dot = Vector3.Dot(inputDir, wallSlideNormal);
+                    if (dot < -0.01f)
+                    {
+                        Vector3 tangent = Vector3.ProjectOnPlane(inputDir, wallSlideNormal);
+                        if (tangent.sqrMagnitude > 0.001f)
+                        {
+                            inputDir = tangent.normalized;
+                        }
+                        else
+                        {
+                            inputDir = Vector3.zero;
+                        }
+                    }
+                }
+                else
+                {
+                    hasWallContact = false;
+                }
+
+                // 2. Proactive short raycast to glide along obstacle surfaces before snagging
+                if (Physics.Raycast(transform.position + Vector3.up * 0.8f, inputDir, out RaycastHit proximityHit, 0.45f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                {
+                    if (proximityHit.normal.y < 0.65f)
+                    {
+                        Vector3 n = new Vector3(proximityHit.normal.x, 0f, proximityHit.normal.z).normalized;
+                        float dot = Vector3.Dot(inputDir, n);
+                        if (dot < -0.01f)
+                        {
+                            Vector3 tangent = Vector3.ProjectOnPlane(inputDir, n);
+                            if (tangent.sqrMagnitude > 0.001f)
+                            {
+                                inputDir = tangent.normalized;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                inputDir = Vector3.zero;
+            }
 
             // Determine target speed
             float targetSpeed = walkSpeed;
@@ -397,7 +449,7 @@ namespace WorldChaseTag.Movement
                 if (horizontalVelocity.magnitude <= crouchSpeed)
                 {
                     isSliding = false;
-                    SetCrouch(Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C));
+                    SetCrouch(Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftAlt));
                 }
             }
             else
@@ -437,12 +489,13 @@ namespace WorldChaseTag.Movement
             currentVelocity = horizontalVelocity + Vector3.up * verticalVelocity;
             controller.Move(currentVelocity * Time.deltaTime);
 
-            // Wall slide resolution: prevent sticking onto obstacle corners/faces
-            if ((controller.collisionFlags & CollisionFlags.Sides) != 0 && horizontalVelocity.sqrMagnitude > 0.01f)
+            // Wall slide resolution: eliminate velocity components pushing directly into the wall surface
+            if (hasWallContact && (Time.time - lastWallContactTime < 0.25f))
             {
-                if (Physics.Raycast(transform.position + Vector3.up * 0.6f, horizontalVelocity.normalized, out RaycastHit wallGlanceHit, 0.65f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                float dot = Vector3.Dot(horizontalVelocity, wallSlideNormal);
+                if (dot < 0f)
                 {
-                    horizontalVelocity = Vector3.ProjectOnPlane(horizontalVelocity, wallGlanceHit.normal);
+                    horizontalVelocity -= wallSlideNormal * dot;
                 }
             }
 
@@ -490,6 +543,16 @@ namespace WorldChaseTag.Movement
 
             if (hitWall)
             {
+                // Never vault or mantle over arena perimeter containment walls!
+                if (wallHit.collider != null)
+                {
+                    string colName = wallHit.collider.name;
+                    if (colName.StartsWith("Barrier_") || colName.Contains("Perimeter") || wallHit.collider.CompareTag("Boundary"))
+                    {
+                        return;
+                    }
+                }
+
                 // Verify wall angle (nearly vertical)
                 if (Vector3.Angle(wallHit.normal, Vector3.up) > 50f)
                 {
@@ -731,5 +794,69 @@ namespace WorldChaseTag.Movement
         public void SetSensitivity(float sens) => mouseSensitivity = sens;
         public void SetBaseFov(float fov) => baseFov = fov;
         public void SetHeadBob(bool enabled) => enableHeadBob = enabled;
+
+        /// <summary>
+        /// Real-time collision contact resolver. Deflects player velocity smoothly along vertical obstacle faces
+        /// to prevent friction sticking or snagging on corners.
+        /// </summary>
+        private void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            if (hit.normal.y < 0.65f && hit.normal.y > -0.65f)
+            {
+                Vector3 wallNormal = new Vector3(hit.normal.x, 0f, hit.normal.z).normalized;
+                if (wallNormal.sqrMagnitude > 0.01f)
+                {
+                    wallSlideNormal = wallNormal;
+                    hasWallContact = true;
+                    lastWallContactTime = Time.time;
+
+                    // Immediately remove velocity directed straight into the wall face
+                    float normalSpeed = Vector3.Dot(horizontalVelocity, wallNormal);
+                    if (normalSpeed < 0f)
+                    {
+                        horizontalVelocity -= wallNormal * normalSpeed;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Safety boundary clamp: Ensures player never falls out of the arena or tunnels outside.
+        /// </summary>
+        private void EnforceArenaBoundaries()
+        {
+            if (isVaulting || isMantling) return;
+
+            Vector3 pos = transform.position;
+            const float maxExtent = 5.65f; // Official Quad 12x12 inner boundary
+            bool clamped = false;
+
+            if (Mathf.Abs(pos.x) > maxExtent)
+            {
+                pos.x = Mathf.Clamp(pos.x, -maxExtent, maxExtent);
+                clamped = true;
+            }
+
+            if (Mathf.Abs(pos.z) > maxExtent)
+            {
+                pos.z = Mathf.Clamp(pos.z, -maxExtent, maxExtent);
+                clamped = true;
+            }
+
+            if (pos.y < -0.2f)
+            {
+                pos.y = 0.85f;
+                verticalVelocity = 0f;
+                clamped = true;
+            }
+
+            if (clamped)
+            {
+                controller.enabled = false;
+                transform.position = pos;
+                controller.enabled = true;
+                horizontalVelocity = Vector3.zero;
+            }
+        }
     }
 }

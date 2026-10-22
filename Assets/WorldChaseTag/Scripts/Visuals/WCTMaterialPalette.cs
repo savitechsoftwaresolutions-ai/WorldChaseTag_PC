@@ -207,12 +207,44 @@ namespace WorldChaseTag.Visuals
         {
             if (realisticSkinMat == null)
             {
-                // Photorealistic athletic skin with micro-creases and warm epidermal tones
-                realisticSkinMat = CreatePBRMaterial("WCT_Photorealistic_Skin", new Color(0.84f, 0.62f, 0.49f), 0.0f, 0.40f);
+                // Soft, photorealistic warm athletic skin
+                realisticSkinMat = CreatePBRMaterial("WCT_Photorealistic_Skin", new Color(0.86f, 0.66f, 0.54f), 0.0f, 0.38f);
                 SetTexture(realisticSkinMat, GenerateSkinAlbedoTexture(512, 512));
-                SetNormalMap(realisticSkinMat, GenerateNormalMapFromHeight(256, 256, SkinHeightSampler, 2.2f), 1.15f);
             }
             return realisticSkinMat;
+        }
+
+        private static Material sleeveAlphaMat;
+        private static Material sleeveOmegaMat;
+        private static Material wristCuffMat;
+
+        public static Material GetSleeveMaterial(ChaseRole role)
+        {
+            if (role == ChaseRole.Chaser)
+            {
+                if (sleeveAlphaMat == null)
+                {
+                    sleeveAlphaMat = CreatePBRMaterial("WCT_Sleeve_Alpha", new Color(0.08f, 0.62f, 0.95f), 0.05f, 0.45f);
+                }
+                return sleeveAlphaMat;
+            }
+            else
+            {
+                if (sleeveOmegaMat == null)
+                {
+                    sleeveOmegaMat = CreatePBRMaterial("WCT_Sleeve_Omega", new Color(0.95f, 0.38f, 0.08f), 0.05f, 0.45f);
+                }
+                return sleeveOmegaMat;
+            }
+        }
+
+        public static Material GetWristCuffMaterial()
+        {
+            if (wristCuffMat == null)
+            {
+                wristCuffMat = CreatePBRMaterial("WCT_Wrist_Cuff", new Color(0.12f, 0.13f, 0.16f), 0.1f, 0.35f);
+            }
+            return wristCuffMat;
         }
 
         public static Material GetSportsWatchMaterial()
@@ -616,9 +648,9 @@ namespace WorldChaseTag.Visuals
         private static Texture2D GenerateSkinAlbedoTexture(int width, int height)
         {
             Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, true);
-            Color skinBase = new Color(0.85f, 0.64f, 0.52f);
-            Color skinWarm = new Color(0.82f, 0.52f, 0.42f); // Warm pinkish tone on knuckles
-            Color palmLight = new Color(0.89f, 0.72f, 0.62f);
+            Color skinBase = new Color(0.86f, 0.66f, 0.54f);
+            Color skinWarm = new Color(0.83f, 0.56f, 0.47f); // Warm pinkish tone on knuckles
+            Color palmLight = new Color(0.90f, 0.74f, 0.64f);
 
             for (int y = 0; y < height; y++)
             {
@@ -626,18 +658,14 @@ namespace WorldChaseTag.Visuals
                 for (int x = 0; x < width; x++)
                 {
                     float normX = (float)x / width;
-                    Color pixel = Color.Lerp(skinBase, palmLight, normX * 0.3f);
+                    Color pixel = Color.Lerp(skinBase, palmLight, normX * 0.25f);
 
-                    // Knuckle warm tone bands
-                    float knuckleDist = Mathf.Abs(Mathf.Sin(normY * Mathf.PI * 4f));
-                    if (knuckleDist > 0.7f)
+                    // Soft knuckle warmth
+                    float knuckleDist = Mathf.Abs(Mathf.Sin(normY * Mathf.PI * 3f));
+                    if (knuckleDist > 0.75f)
                     {
-                        pixel = Color.Lerp(pixel, skinWarm, (knuckleDist - 0.7f) * 1.5f);
+                        pixel = Color.Lerp(pixel, skinWarm, (knuckleDist - 0.75f) * 1.2f);
                     }
-
-                    // Micro noise
-                    float noise = ((x * 31 + y * 41) % 13) * 0.004f;
-                    pixel = new Color(pixel.r + noise, pixel.g + noise * 0.5f, pixel.b + noise * 0.3f, 1f);
 
                     tex.SetPixel(x, y, pixel);
                 }

@@ -90,7 +90,7 @@ namespace WorldChaseTag.Editor
             playerCC.center = new Vector3(0f, 0.9f, 0f);
             playerCC.stepOffset = 0.5f;
             playerCC.slopeLimit = 60f;
-            playerCC.skinWidth = 0.03f;
+            playerCC.skinWidth = 0.015f;
             playerCC.minMoveDistance = 0f;
 
             GameObject camHolder = new GameObject("CameraHolder");
@@ -99,7 +99,7 @@ namespace WorldChaseTag.Editor
 
             Camera cam = camHolder.AddComponent<Camera>();
             cam.fieldOfView = 75f;
-            cam.nearClipPlane = 0.1f;
+            cam.nearClipPlane = 0.02f;
             cam.allowHDR = true;
             cam.allowMSAA = true;
             cam.useOcclusionCulling = true;

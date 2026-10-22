@@ -1595,7 +1595,7 @@ namespace WorldChaseTag.UI
                 case 0: return "Master sprint momentum, responsive WASD directional strafing, and stamina budgeting.";
                 case 1: return "Sprint towards low rails and press Space to execute fluid hurdle vaults without loss of speed.";
                 case 2: return "Practice optimal Quad perimeter routes, mantle pull-ups on central mountain, and slide escapes.";
-                case 3: return "Close distance to within 1.5m of the runner and press Key F within 70-degree cone to land tags.";
+                case 3: return "Close distance to within 1.5m of the runner and press Key C or Left Click to land tags.";
                 case 4: return "1-on-1 dynamic chase drill against adaptive AI to sharpen evade reaction times.";
                 default: return "Full open arena free-roam with no clock limits.";
             }
