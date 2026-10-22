@@ -174,10 +174,68 @@ namespace WorldChaseTag.Editor
             Debug.Log("[WCTSceneBuilder] Build Settings updated with MainArena scene.");
         }
 
+        [MenuItem("World Chase Tag/Import Snaps Sci-Fi Industrial Package")]
+        public static void ImportSnapsPackage()
+        {
+            string packagePath = @"C:\Users\SURYAWANSHI\Downloads\Snaps Prototype Sci-Fi Industrial.unitypackage";
+            if (!System.IO.File.Exists(packagePath))
+            {
+                Debug.LogError($"[WCTSceneBuilder] Package not found at: {packagePath}");
+                return;
+            }
+            Debug.Log($"[WCTSceneBuilder] Importing Snaps Sci-Fi Industrial package from: {packagePath}");
+            AssetDatabase.ImportPackage(packagePath, false);
+            Debug.Log("[WCTSceneBuilder] Package imported successfully.");
+        }
+
+        [MenuItem("World Chase Tag/Upgrade Snaps Materials to URP")]
+        public static void UpgradeSnapsMaterialsToURP()
+        {
+            Shader urpLit = Shader.Find("Universal Render Pipeline/Lit");
+            if (urpLit == null)
+            {
+                Debug.LogError("[WCTSceneBuilder] Universal Render Pipeline/Lit shader not found!");
+                return;
+            }
+
+            string[] matGuids = AssetDatabase.FindAssets("t:Material", new[] { "Assets/AssetStoreOriginals" });
+            int upgraded = 0;
+            foreach (string guid in matGuids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (mat != null && mat.shader != urpLit)
+                {
+                    Color col = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white;
+                    float metallic = mat.HasProperty("_Metallic") ? mat.GetFloat("_Metallic") : 0.5f;
+                    float smoothness = mat.HasProperty("_Glossiness") ? mat.GetFloat("_Glossiness") : 0.5f;
+                    Texture mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") : null;
+
+                    mat.shader = urpLit;
+                    mat.SetColor("_BaseColor", col);
+                    mat.SetFloat("_Metallic", metallic);
+                    mat.SetFloat("_Smoothness", smoothness);
+                    if (mainTex != null) mat.SetTexture("_BaseMap", mainTex);
+
+                    EditorUtility.SetDirty(mat);
+                    upgraded++;
+                }
+            }
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[WCTSceneBuilder] Upgraded {upgraded} materials to Universal Render Pipeline Lit.");
+        }
+
         [MenuItem("World Chase Tag/Build Windows Standalone Player")]
         public static void BuildWindowsPlayer()
         {
-            Debug.Log("[WCTSceneBuilder] Building Main Arena scene before build...");
+            Debug.Log("[WCTSceneBuilder] Switching Active Target to StandaloneWindows64...");
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
+            PlayerSettings.defaultScreenWidth = 1920;
+            PlayerSettings.defaultScreenHeight = 1080;
+            PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
+            PlayerSettings.resizableWindow = true;
+
+            Debug.Log("[WCTSceneBuilder] Building Main Arena scene before Windows PC build...");
             BuildMainScene();
 
             string buildDir = "Builds";

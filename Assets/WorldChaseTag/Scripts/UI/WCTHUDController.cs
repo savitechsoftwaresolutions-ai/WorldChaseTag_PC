@@ -214,7 +214,7 @@ namespace WorldChaseTag.UI
                 bannerAlpha -= Time.deltaTime * 0.4f;
             }
 
-            if (!isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
+            if (Application.isMobilePlatform && !isPaused && (WCTMenuController.Instance == null || !WCTMenuController.Instance.IsMenuOpen))
             {
                 UpdateMobileTouchInput();
             }
@@ -588,14 +588,23 @@ namespace WorldChaseTag.UI
                     DrawStaminaMeter(sw, sh);
                 }
 
-                // Bottom-Left: Virtual On-Screen Joystick & WASD movement disc
-                DrawVirtualJoystickAndMovement(sw, sh);
-
-                // Bottom-Right: Esports Action Badges (Jump, Slide, Catch/Tag)
-                DrawBottomRightActionButtons(sw, sh);
-
-                // Top: Gyroscope Status & Toggle Button
-                DrawGyroscopeToggle(sw);
+#if UNITY_ANDROID || UNITY_IOS
+                if (Application.isMobilePlatform)
+                {
+                    // Mobile Layout: Virtual Joystick, Touch Action Buttons, Gyroscope Toggle
+                    DrawVirtualJoystickAndMovement(sw, sh);
+                    DrawBottomRightActionButtons(sw, sh);
+                    DrawGyroscopeToggle(sw);
+                }
+                else
+                {
+                    // PC Layout: Clean esports HUD with keyboard keycaps & action hotkeys matching screenshot
+                    DrawPCControlsLayout(sw, sh);
+                }
+#else
+                // PC Layout: Clean esports HUD with keyboard keycaps & action hotkeys matching screenshot
+                DrawPCControlsLayout(sw, sh);
+#endif
             }
 
             // Center Countdown / Announcement Banner (3, 2, 1, GO!, EVADED, TAGGED)
@@ -881,6 +890,104 @@ namespace WorldChaseTag.UI
             smallTextStyle.fontSize = 11;
             smallTextStyle.normal.textColor = Color.white;
             GUI.Label(new Rect(cardX + 28, objY + 21, cardW - 32, 18), objStr, smallTextStyle);
+        }
+
+        // ==============================================================
+        // PC ESPORTS CONTROLS & ACTION BADGES (Matching Screenshot!)
+        // ==============================================================
+        private void DrawPCControlsLayout(float sw, float sh)
+        {
+            // 1. Bottom-Left: WASD Movement Keycaps Column (Matching reference screenshot!)
+            float keyW = 28f;
+            float keyH = 28f;
+            float kx = 34f;
+            float ky = sh - 145f;
+
+            bool wPressed = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+            bool aPressed = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
+            bool sPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+            bool dPressed = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
+            bool shiftPressed = Input.GetKey(KeyCode.LeftShift);
+
+            // Forward W
+            DrawPCKeycap(kx + 32, ky, keyW, keyH, "W", wPressed);
+            // Left A, Backward S, Right D
+            DrawPCKeycap(kx, ky + 32, keyW, keyH, "A", aPressed);
+            DrawPCKeycap(kx + 32, ky + 32, keyW, keyH, "S", sPressed);
+            DrawPCKeycap(kx + 64, ky + 32, keyW, keyH, "D", dPressed);
+
+            // Sprint indicator pill below
+            float pillW = 92f;
+            float pillH = 22f;
+            GUI.color = shiftPressed ? new Color(0.1f, 0.75f, 0.95f, 0.9f) : new Color(0.06f, 0.1f, 0.16f, 0.85f);
+            GUI.DrawTexture(new Rect(kx, ky + 68, pillW, pillH), darkBoxTex);
+            badgeStyle.fontSize = 9;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = shiftPressed ? Color.black : new Color(0.7f, 0.85f, 1.0f);
+            GUI.Label(new Rect(kx, ky + 68, pillW, pillH), "SHIFT : SPRINT", badgeStyle);
+            GUI.color = Color.white;
+
+            // 2. Bottom-Right: PC Esports Action Badges
+            float spacing = 96f;
+            float rightX = sw - (spacing * 3) - 25f;
+            float actionY = sh - 105f;
+
+            bool spacePressed = Input.GetKey(KeyCode.Space);
+            bool ctrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
+            bool fPressed = Input.GetKey(KeyCode.F);
+
+            DrawPCActionBadge(rightX, actionY, 58f, "🏃", "JUMP / VAULT", "[SPACE]", new Color(0.12f, 0.45f, 0.85f), spacePressed);
+            DrawPCActionBadge(rightX + spacing, actionY, 58f, "🤸", "SLIDE / DUCK", "[C / CTRL]", new Color(0.2f, 0.7f, 0.6f), ctrlPressed);
+            DrawPCActionBadge(rightX + spacing * 2, actionY - 4, 66f, "✋", "TAG / CATCH", "[KEY F]", new Color(0.96f, 0.38f, 0.08f), fPressed, true);
+        }
+
+        private void DrawPCKeycap(float x, float y, float w, float h, string key, bool pressed)
+        {
+            GUI.color = pressed ? new Color(0.1f, 0.75f, 0.95f, 0.95f) : new Color(0.05f, 0.08f, 0.14f, 0.85f);
+            GUI.DrawTexture(new Rect(x, y, w, h), darkBoxTex);
+            GUI.color = pressed ? Color.white : new Color(0.2f, 0.4f, 0.65f, 0.8f);
+            GUI.DrawTexture(new Rect(x, y, w, 2), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+
+            badgeStyle.fontSize = 11;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = pressed ? Color.black : Color.white;
+            GUI.Label(new Rect(x, y, w, h), key, badgeStyle);
+        }
+
+        private void DrawPCActionBadge(float x, float y, float size, string icon, string title, string hotkey, Color accentCol, bool pressed, bool isHighlight = false)
+        {
+            Rect btnRect = new Rect(x, y, size, size);
+
+            GUI.color = pressed ? accentCol : (isHighlight ? new Color(0.25f, 0.1f, 0.05f, 0.92f) : new Color(0.04f, 0.08f, 0.14f, 0.88f));
+            GUI.DrawTexture(btnRect, circleTex);
+
+            GUI.color = accentCol;
+            GUI.DrawTexture(btnRect, ringTex);
+
+            if (isHighlight)
+            {
+                float pulse = (Mathf.Sin(Time.time * 8f) + 1f) * 0.5f;
+                GUI.color = new Color(accentCol.r, accentCol.g, accentCol.b, 0.3f + pulse * 0.4f);
+                GUI.DrawTexture(new Rect(x - 4, y - 4, size + 8, size + 8), ringTex);
+            }
+
+            badgeStyle.fontSize = (int)(size * 0.38f);
+            badgeStyle.normal.textColor = pressed ? Color.black : Color.white;
+            GUI.Label(new Rect(x, y + size * 0.22f, size, size * 0.45f), icon, badgeStyle);
+            GUI.color = Color.white;
+
+            smallTextStyle.fontSize = 10;
+            smallTextStyle.fontStyle = FontStyle.Bold;
+            smallTextStyle.alignment = TextAnchor.MiddleCenter;
+            smallTextStyle.normal.textColor = isHighlight ? new Color(1.0f, 0.7f, 0.4f) : Color.white;
+            GUI.Label(new Rect(x - 20, y + size + 2, size + 40, 14), title, smallTextStyle);
+
+            badgeStyle.fontSize = 9;
+            badgeStyle.fontStyle = FontStyle.Normal;
+            badgeStyle.normal.textColor = new Color(0.7f, 0.85f, 1.0f);
+            GUI.Label(new Rect(x - 20, y + size + 16, size + 40, 14), hotkey, badgeStyle);
+            smallTextStyle.alignment = TextAnchor.MiddleLeft;
         }
 
         // ==============================================================

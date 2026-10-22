@@ -2,15 +2,18 @@
 
 > **Agent Instruction:** Read this file at the start of each task to retrieve project decisions, past bug resolutions, and context without re-reading the entire codebase. This keeps token usage minimal and prevents regressions.
 
-- **Last Updated:** [ISO_TIMESTAMP]
-- **Estimated Token Footprint:** ~800 tokens
+- **Last Updated:** 2026-10-22
+- **Estimated Token Footprint:** ~850 tokens
 
 ---
 
 ## 1. Active Project Context & Current Focus
-- **Current Milestone:** [CURRENT_FOCUS]
+- **Current Milestone:** Windows PC Standalone Target & Snaps Sci-Fi Industrial Integration
 - **Recently Modified Core Files:**
-  - `[FILES]`
+  - `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs` (gated mobile touch controls behind Application.isMobilePlatform; PC esports HUD with WASD keycaps and hotkey action badges)
+  - `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs` (enforced desktop locked cursor mode and fluid FPS mouse look on PC)
+  - `Assets/WorldChaseTag/Scripts/Editor/WCTSceneBuilder.cs` (added ImportSnapsPackage, UpgradeSnapsMaterialsToURP, StandaloneWindows64 active build target)
+  - `Assets/AssetStoreOriginals/_SNAPS_PrototypingAssets/` (imported 159 modular industrial prefabs & 161 mesh assets)
 
 ---
 

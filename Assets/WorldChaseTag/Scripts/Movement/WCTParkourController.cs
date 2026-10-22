@@ -196,24 +196,27 @@ namespace WorldChaseTag.Movement
 
         private void Start()
         {
-#if !UNITY_ANDROID && !UNITY_IOS
-            bool menuOpen = (WorldChaseTag.UI.WCTMenuController.Instance != null && WorldChaseTag.UI.WCTMenuController.Instance.IsMenuOpen);
-            if (menuOpen)
+            if (!Application.isMobilePlatform)
             {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-                ControlsEnabled = false;
+                bool menuOpen = (WorldChaseTag.UI.WCTMenuController.Instance != null && WorldChaseTag.UI.WCTMenuController.Instance.IsMenuOpen);
+                if (menuOpen)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    ControlsEnabled = false;
+                }
+                else
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                    ControlsEnabled = true;
+                }
             }
             else
             {
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
-                ControlsEnabled = true;
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
             }
-#else
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-#endif
         }
 
         private void Update()
@@ -226,39 +229,42 @@ namespace WorldChaseTag.Movement
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.MATCH_RESULT ||
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.POST_MATCH));
 
-#if !UNITY_ANDROID && !UNITY_IOS
-            if (isUIActive)
+            if (!Application.isMobilePlatform)
             {
-                // UI is active: Cursor is free and visible; Freeze camera & movement
-                if (Cursor.lockState != CursorLockMode.None)
+                if (isUIActive)
                 {
-                    Cursor.lockState = CursorLockMode.None;
-                }
-                if (!Cursor.visible)
-                {
-                    Cursor.visible = true;
+                    // UI is active: Cursor is free and visible; Freeze camera & movement
+                    if (Cursor.lockState != CursorLockMode.None)
+                    {
+                        Cursor.lockState = CursorLockMode.None;
+                    }
+                    if (!Cursor.visible)
+                    {
+                        Cursor.visible = true;
+                    }
+
+                    ApplyGravityOnly();
+                    return;
                 }
 
-                ApplyGravityOnly();
-                return;
+                // Gameplay is active: Cursor is locked and hidden for FPS camera
+                if (Cursor.lockState != CursorLockMode.Locked)
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                }
+                if (Cursor.visible)
+                {
+                    Cursor.visible = false;
+                }
             }
-
-            // Gameplay is active: Cursor is locked and hidden for FPS camera
-            if (Cursor.lockState != CursorLockMode.Locked)
+            else
             {
-                Cursor.lockState = CursorLockMode.Locked;
+                if (isUIActive)
+                {
+                    ApplyGravityOnly();
+                    return;
+                }
             }
-            if (Cursor.visible)
-            {
-                Cursor.visible = false;
-            }
-#else
-            if (isUIActive)
-            {
-                ApplyGravityOnly();
-                return;
-            }
-#endif
 
             // Update timers
             if (controller.isGrounded)

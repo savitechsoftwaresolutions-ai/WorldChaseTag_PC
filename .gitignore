@@ -30,13 +30,9 @@
 Thumbs.db
 desktop.ini
 
-# Logs
+# Logs and scratch
 *.log
-test_run.log
-test_exec.log
-build.log
-build_v2.log
-build_final.log
-build_now.log
-compile_check.log
-unity_test.log
+scratch/
+.utmp/
+*.apk
+
