@@ -204,6 +204,9 @@ namespace WorldChaseTag.Core
             camHolder.AddComponent<WCTFPPArms>();
 
             WCTParkourController pc = player.AddComponent<WCTParkourController>();
+            WCTAthleteVisuals pv = player.AddComponent<WCTAthleteVisuals>();
+            pv.SetRole(ChaseRole.Chaser, "Player01");
+            pv.SetBodyVisible(false);
             return pc;
         }
 

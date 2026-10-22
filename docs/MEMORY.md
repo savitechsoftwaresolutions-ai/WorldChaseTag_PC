@@ -103,6 +103,21 @@
   5. Enhanced `WCTTagSystem` with generous 2.2m reach, 160° forward cone, hierarchy-aware evader resolution (`IsChildOf`), self-occlusion filtering, forward lunge boost on tag strike, and audio feedback.
 - **Files Affected:** `Assets/WorldChaseTag/Scripts/Combat/WCTTagSystem.cs`, `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/Editor/WCTSceneBuilder.cs`, `Assets/WorldChaseTag/Scripts/Core/WCTSceneCoordinator.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/AI/WCTAgentMotor.cs`, `Assets/WorldChaseTag/Scripts/AI/WCTChaserAI.cs`
 
+
+#### [BUG-004]: Wall Sticking, Void Falling, Catch Rebind to Key C, and 100% Championship Controls Layout
+- **Error Signature:** Player stuck against wall colliders when running close or touching surfaces; player fell into void outside arena; Catch action needed on Key C instead of F; HUD controls needed 100% exact match to reference screenshot with customizable drawer.
+- **Root Cause:**
+  1. Starting sphere/ray casts flush against obstacles caused PhysX sweeps to miss normals, and horizontal velocity into walls wasn't deflected, creating friction sticking.
+  2. Perimeter barrier height (1.8m) was lower than max mantle height (1.85m), causing the parkour system to vault/mantle the player outside the arena into empty space.
+  3. Catch was previously on Key F; user explicitly demanded Key C.
+  4. HUD needed 100% parity with reference screenshot: virtual joystick with 4 cardinal arrows, auto-run locking pill, sprint & backpack buttons, curved bottom stamina meter, right thumb action cluster (Catch on C, Jump, Slide, mini action buttons ▲/▼/🤾), TPP/FPP perspective toggle with runner model visible, bottom presets bar, and right-hand "CUSTOMIZE CONTROLS" drawer panel with 4 sliders, 5 toggles, and layout preset management.
+- **Permanent Fix:**
+  1. Added `OnControllerColliderHit` in `WCTParkourController` to immediately subtract wall-normal velocity (`horizontalVelocity -= wallNormal * normalSpeed`), ensuring frictionless sliding along obstacle faces.
+  2. Raised perimeter barriers to 3.2m, expanded collider depth outward to 4.0m, tagged as `"Boundary"`, removed top handrail collider, excluded boundaries from parkour ledge detection, and added `EnforceArenaBoundaries()` safety position clamp.
+  3. Bound Catch/Tag strictly to `KeyCode.C` and Left Mouse Click (removed KeyCode.F everywhere).
+  4. Implemented full Championship Controls layout and "CUSTOMIZE CONTROLS" drawer panel with live scales, opacities, toggles, perspective switching (TPP/FPP on Key V), and playerprefs layout persistence.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/Visuals/WCTAthleteVisuals.cs`
+
 ---
 
 ## 3. Architecture Decisions & Inviolable Conventions

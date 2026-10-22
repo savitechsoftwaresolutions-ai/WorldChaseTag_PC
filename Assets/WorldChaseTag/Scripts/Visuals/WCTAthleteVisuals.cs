@@ -60,6 +60,14 @@ namespace WorldChaseTag.Visuals
             UpdateOverheadDisplay();
         }
 
+        public void SetBodyVisible(bool visible)
+        {
+            if (visualsRoot != null)
+            {
+                visualsRoot.SetActive(visible);
+            }
+        }
+
         private void BuildAthleteBody()
         {
             if (visualsRoot != null) DestroyImmediate(visualsRoot);

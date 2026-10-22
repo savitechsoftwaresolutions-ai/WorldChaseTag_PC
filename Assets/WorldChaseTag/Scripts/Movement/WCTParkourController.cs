@@ -156,6 +156,56 @@ namespace WorldChaseTag.Movement
             AttemptTagAction();
         }
 
+        [Header("Perspective")]
+        [SerializeField] private bool isThirdPerson = false;
+        public bool IsThirdPerson => isThirdPerson;
+        public bool IsAutoRun { get => isAutoRun; set => isAutoRun = value; }
+        private bool isAutoRun = false;
+
+        public void TogglePerspective()
+        {
+            SetPerspective(!isThirdPerson);
+        }
+
+        public void SetPerspective(bool tpp)
+        {
+            isThirdPerson = tpp;
+            if (cameraHolder != null)
+            {
+                cameraHolder.localPosition = isThirdPerson ? new Vector3(0.35f, 1.75f, -2.6f) : defaultCameraLocalPos;
+            }
+
+            var fppArms = GetComponentInChildren<WorldChaseTag.Visuals.WCTFPPArms>(true);
+            if (fppArms != null)
+            {
+                fppArms.gameObject.SetActive(!isThirdPerson);
+            }
+
+            var athleteVisuals = GetComponent<WorldChaseTag.Visuals.WCTAthleteVisuals>();
+            if (athleteVisuals != null)
+            {
+                athleteVisuals.SetBodyVisible(isThirdPerson);
+            }
+        }
+
+        public void TriggerClimb()
+        {
+            jumpBufferTimer = jumpBufferDuration;
+        }
+
+        public void TriggerDrop()
+        {
+            SetCrouch(true);
+        }
+
+        public void TriggerDive()
+        {
+            if (controller.isGrounded)
+            {
+                StartSlide();
+            }
+        }
+
         public event Action<string> OnParkourActionTriggered; // "VAULT", "MANTLE", "SLIDE", "TAG_ATTEMPT"
 
         private void Awake()
@@ -232,11 +282,13 @@ namespace WorldChaseTag.Movement
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.MATCH_RESULT ||
                                WorldChaseTag.Core.WCTMatchController.Instance.State == WorldChaseTag.Core.WCTMatchState.POST_MATCH));
 
+            bool isCustomizeOpen = WorldChaseTag.UI.WCTHUDController.Instance != null && WorldChaseTag.UI.WCTHUDController.Instance.IsCustomizeControlsOpen;
+            bool freeCursor = isUIActive || isCustomizeOpen || Input.GetKey(KeyCode.LeftAlt);
+
             if (!Application.isMobilePlatform)
             {
-                if (isUIActive)
+                if (freeCursor)
                 {
-                    // UI is active: Cursor is free and visible; Freeze camera & movement
                     if (Cursor.lockState != CursorLockMode.None)
                     {
                         Cursor.lockState = CursorLockMode.None;
@@ -246,18 +298,22 @@ namespace WorldChaseTag.Movement
                         Cursor.visible = true;
                     }
 
-                    ApplyGravityOnly();
-                    return;
+                    if (isUIActive)
+                    {
+                        ApplyGravityOnly();
+                        return;
+                    }
                 }
-
-                // Gameplay is active: Cursor is locked and hidden for FPS camera
-                if (Cursor.lockState != CursorLockMode.Locked)
+                else
                 {
-                    Cursor.lockState = CursorLockMode.Locked;
-                }
-                if (Cursor.visible)
-                {
-                    Cursor.visible = false;
+                    if (Cursor.lockState != CursorLockMode.Locked)
+                    {
+                        Cursor.lockState = CursorLockMode.Locked;
+                    }
+                    if (Cursor.visible)
+                    {
+                        Cursor.visible = false;
+                    }
                 }
             }
             else
@@ -284,8 +340,11 @@ namespace WorldChaseTag.Movement
                 jumpBufferTimer -= Time.deltaTime;
             }
 
-            // Camera angle / mouse look ALWAYS works in gameplay!
-            HandleMouseLook();
+            // Camera angle / mouse look works when cursor is locked or via touch swipe
+            if (!freeCursor || Application.isMobilePlatform)
+            {
+                HandleMouseLook();
+            }
 
             // When controls are disabled (e.g. 3-2-1 countdown), freeze character movement only
             if (!ControlsEnabled || isVaulting || isMantling)
@@ -368,10 +427,16 @@ namespace WorldChaseTag.Movement
                 }
             }
 
-            // Catch / Tag Attempt on KEY C (and secondary Key F / Left Mouse Click)
-            if (Input.GetKeyDown(KeyCode.C) || Input.GetKeyDown(KeyCode.F) || Input.GetMouseButtonDown(0))
+            // Catch / Tag Attempt on KEY C (and Left Mouse Click)
+            if (Input.GetKeyDown(KeyCode.C) || Input.GetMouseButtonDown(0))
             {
                 AttemptTagAction();
+            }
+
+            // Toggle Perspective (TPP / FPP) on Key V
+            if (Input.GetKeyDown(KeyCode.V))
+            {
+                TogglePerspective();
             }
         }
 
@@ -379,6 +444,13 @@ namespace WorldChaseTag.Movement
         {
             float inputX = Input.GetAxisRaw("Horizontal");
             float inputZ = Input.GetAxisRaw("Vertical");
+
+            // Auto-run locks forward sprint
+            if (isAutoRun)
+            {
+                inputZ = 1f;
+                virtualSprint = true;
+            }
 
             // Merge virtual joystick input
             if (virtualMoveInput.sqrMagnitude > 0.001f)

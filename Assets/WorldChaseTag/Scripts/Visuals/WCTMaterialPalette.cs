@@ -1,4 +1,5 @@
 using UnityEngine;
+using WorldChaseTag.Core;
 
 namespace WorldChaseTag.Visuals
 {

@@ -112,6 +112,9 @@ namespace WorldChaseTag.Editor
             camHolder.AddComponent<WCTFPPArms>();
 
             WCTParkourController parkourController = playerObj.AddComponent<WCTParkourController>();
+            WCTAthleteVisuals playerVisuals = playerObj.AddComponent<WCTAthleteVisuals>();
+            playerVisuals.SetRole(ChaseRole.Chaser, "Player01");
+            playerVisuals.SetBodyVisible(false);
 
             // 4. Create AI Opponent with High-Visibility 3D Athlete Visuals
             GameObject aiObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);

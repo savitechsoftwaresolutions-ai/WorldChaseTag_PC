@@ -73,6 +73,23 @@ namespace WorldChaseTag.UI
         private int swipeLookFingerId = -1;
         private Vector2 lastSwipePos = Vector2.zero;
 
+        // Customize Controls State & Presets matching exact reference UI
+        public bool IsCustomizeControlsOpen => isCustomizeControlsOpen;
+        private bool isCustomizeControlsOpen = false;
+        private int currentPresetIndex = 0; // 0: Classic, 1: Two Thumb, 2: Left Hand, 3: Right Hand, 4: Large Buttons, 5: Compact
+        private int customizeTabIndex = 0; // 0: Move, 1: Action, 2: View, 3: Combat
+        private float joystickScale = 1.20f;
+        private float joystickOpacity = 0.80f;
+        private float buttonScale = 1.10f;
+        private float buttonOpacity = 0.85f;
+        private bool showLabels = true;
+        private bool autoRunEnabled = true;
+        private bool quickSprintEnabled = true;
+        private bool holdToCrouch = false;
+        private bool tapToSlide = true;
+        private bool isAutoRunLocked = false;
+        private float saveNotificationTimer = 0f;
+
         private void Awake()
         {
             if (Instance == null)
@@ -97,6 +114,8 @@ namespace WorldChaseTag.UI
             {
                 matchController.OnBannerAnnouncement += DisplayBanner;
             }
+
+            LoadLayoutSettings();
         }
 
         private void OnDestroy()
@@ -379,6 +398,11 @@ namespace WorldChaseTag.UI
 
         public void DisplayBanner(string message)
         {
+            DisplayBanner(message, 2.5f);
+        }
+
+        public void DisplayBanner(string message, float duration)
+        {
             activeBannerText = message;
             bannerAlpha = 1.0f;
         }
@@ -588,23 +612,8 @@ namespace WorldChaseTag.UI
                     DrawStaminaMeter(sw, sh);
                 }
 
-#if UNITY_ANDROID || UNITY_IOS
-                if (Application.isMobilePlatform)
-                {
-                    // Mobile Layout: Virtual Joystick, Touch Action Buttons, Gyroscope Toggle
-                    DrawVirtualJoystickAndMovement(sw, sh);
-                    DrawBottomRightActionButtons(sw, sh);
-                    DrawGyroscopeToggle(sw);
-                }
-                else
-                {
-                    // PC Layout: Clean esports HUD with keyboard keycaps & action hotkeys matching screenshot
-                    DrawPCControlsLayout(sw, sh);
-                }
-#else
-                // PC Layout: Clean esports HUD with keyboard keycaps & action hotkeys matching screenshot
-                DrawPCControlsLayout(sw, sh);
-#endif
+                // 6. Championship AAA Esports HUD Controls & Customize Panel (100% matching reference screenshot!)
+                DrawChampionshipControlsLayout(sw, sh);
             }
 
             // Center Countdown / Announcement Banner (3, 2, 1, GO!, EVADED, TAGGED)
@@ -807,16 +816,26 @@ namespace WorldChaseTag.UI
             float cardW = 190f;
             float cardX = sw - cardW - 22f;
 
-            // 1. Header: "QUAD ARENA (CLASSIC)" + "124 FPS / 32 ms"
+            // 1. Header: "QUAD ARENA (CLASSIC)" + Settings Gear Button
             float headerY = 12f;
             badgeStyle.fontSize = 11;
             badgeStyle.fontStyle = FontStyle.Bold;
             badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(cardX, headerY, 130, 16), "QUAD ARENA (CLASSIC)", badgeStyle);
+            GUI.Label(new Rect(cardX, headerY, 140, 18), "QUAD ARENA (CLASSIC)", badgeStyle);
 
-            smallTextStyle.fontSize = 9;
-            smallTextStyle.normal.textColor = new Color(0.6f, 0.7f, 0.85f);
-            GUI.Label(new Rect(cardX + 130, headerY, 60, 16), "124 FPS\n32 ms", smallTextStyle);
+            // Settings Gear Icon Button (Click to open/close CUSTOMIZE CONTROLS)
+            Rect gearRect = new Rect(cardX + cardW - 24, headerY - 2, 22, 22);
+            GUI.color = isCustomizeControlsOpen ? new Color(0.1f, 0.75f, 0.98f, 0.95f) : new Color(0.06f, 0.1f, 0.16f, 0.85f);
+            GUI.DrawTexture(gearRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.fontSize = 12;
+            badgeStyle.normal.textColor = isCustomizeControlsOpen ? Color.black : Color.white;
+            GUI.Label(gearRect, "⚙", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && gearRect.Contains(Event.current.mousePosition))
+            {
+                isCustomizeControlsOpen = !isCustomizeControlsOpen;
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
 
             // 2. Blueprint Tactical Minimap Card
             float mapY = 32f;
@@ -893,292 +912,781 @@ namespace WorldChaseTag.UI
         }
 
         // ==============================================================
-        // PC ESPORTS CONTROLS & ACTION BADGES (Matching Screenshot!)
+        // BOTTOM-CENTER: STAMINA BAR (Matching Reference Screenshot!)
         // ==============================================================
-        private void DrawPCControlsLayout(float sw, float sh)
+        private void DrawStaminaMeter(float sw, float sh)
         {
-            // 1. Bottom-Left: WASD Movement Keycaps Column (Matching reference screenshot!)
-            float keyW = 28f;
-            float keyH = 28f;
-            float kx = 34f;
-            float ky = sh - 145f;
+            float barW = 260f;
+            float barH = 12f;
+            float sx = (sw - barW) * 0.5f;
+            float sy = sh - 58f; // Positioned right above the bottom preset bar
 
-            bool wPressed = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
-            bool aPressed = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
-            bool sPressed = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
-            bool dPressed = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
-            bool shiftPressed = Input.GetKey(KeyCode.LeftShift);
+            // Running Athlete Circle Icon
+            float iconSize = 28f;
+            float iconX = sx - 36f;
+            float iconY = sy - 8f;
+            GUI.color = new Color(0.04f, 0.08f, 0.14f, 0.90f);
+            GUI.DrawTexture(new Rect(iconX, iconY, iconSize, iconSize), circleTex);
+            GUI.color = new Color(0.15f, 0.65f, 0.95f, 0.95f);
+            GUI.DrawTexture(new Rect(iconX, iconY, iconSize, iconSize), ringTex);
+            GUI.color = Color.white;
+            badgeStyle.fontSize = 13;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(iconX, iconY, iconSize, iconSize), "🏃", badgeStyle);
 
-            // Forward W
-            DrawPCKeycap(kx + 32, ky, keyW, keyH, "W", wPressed);
-            // Left A, Backward S, Right D
-            DrawPCKeycap(kx, ky + 32, keyW, keyH, "A", aPressed);
-            DrawPCKeycap(kx + 32, ky + 32, keyW, keyH, "S", sPressed);
-            DrawPCKeycap(kx + 64, ky + 32, keyW, keyH, "D", dPressed);
+            // Dark meter track capsule
+            GUI.color = new Color(0.04f, 0.07f, 0.12f, 0.88f);
+            GUI.DrawTexture(new Rect(sx, sy, barW, barH), darkBoxTex);
 
-            // Sprint indicator pill below
-            float pillW = 92f;
-            float pillH = 22f;
-            GUI.color = shiftPressed ? new Color(0.1f, 0.75f, 0.95f, 0.9f) : new Color(0.06f, 0.1f, 0.16f, 0.85f);
-            GUI.DrawTexture(new Rect(kx, ky + 68, pillW, pillH), darkBoxTex);
-            badgeStyle.fontSize = 9;
-            badgeStyle.fontStyle = FontStyle.Bold;
-            badgeStyle.normal.textColor = shiftPressed ? Color.black : new Color(0.7f, 0.85f, 1.0f);
-            GUI.Label(new Rect(kx, ky + 68, pillW, pillH), "SHIFT : SPRINT", badgeStyle);
+            // Glowing Cyan Fill
+            float fill = playerController != null ? playerController.StaminaNormalized : 1.0f;
+            GUI.color = Color.cyan;
+            GUI.DrawTexture(new Rect(sx, sy, barW * fill, barH), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            // 2. Bottom-Right: PC Esports Action Badges
-            float spacing = 96f;
-            float rightX = sw - (spacing * 3) - 25f;
-            float actionY = sh - 105f;
-
-            bool spacePressed = Input.GetKey(KeyCode.Space);
-            bool ctrlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftAlt);
-            bool cPressed = Input.GetKey(KeyCode.C) || Input.GetKey(KeyCode.F) || Input.GetMouseButton(0);
-
-            DrawPCActionBadge(rightX, actionY, 58f, "🏃", "JUMP / VAULT", "[SPACE]", new Color(0.12f, 0.45f, 0.85f), spacePressed);
-            DrawPCActionBadge(rightX + spacing, actionY, 58f, "🤸", "SLIDE / DUCK", "[CTRL]", new Color(0.2f, 0.7f, 0.6f), ctrlPressed);
-            DrawPCActionBadge(rightX + spacing * 2, actionY - 4, 66f, "✋", "TAG / CATCH", "[KEY C]", new Color(0.96f, 0.38f, 0.08f), cPressed, true);
-        }
-
-        private void DrawPCKeycap(float x, float y, float w, float h, string key, bool pressed)
-        {
-            GUI.color = pressed ? new Color(0.1f, 0.75f, 0.95f, 0.95f) : new Color(0.05f, 0.08f, 0.14f, 0.85f);
-            GUI.DrawTexture(new Rect(x, y, w, h), darkBoxTex);
-            GUI.color = pressed ? Color.white : new Color(0.2f, 0.4f, 0.65f, 0.8f);
-            GUI.DrawTexture(new Rect(x, y, w, 2), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-
-            badgeStyle.fontSize = 11;
-            badgeStyle.fontStyle = FontStyle.Bold;
-            badgeStyle.normal.textColor = pressed ? Color.black : Color.white;
-            GUI.Label(new Rect(x, y, w, h), key, badgeStyle);
-        }
-
-        private void DrawPCActionBadge(float x, float y, float size, string icon, string title, string hotkey, Color accentCol, bool pressed, bool isHighlight = false)
-        {
-            Rect btnRect = new Rect(x, y, size, size);
-
-            GUI.color = pressed ? accentCol : (isHighlight ? new Color(0.25f, 0.1f, 0.05f, 0.92f) : new Color(0.04f, 0.08f, 0.14f, 0.88f));
-            GUI.DrawTexture(btnRect, circleTex);
-
-            GUI.color = accentCol;
-            GUI.DrawTexture(btnRect, ringTex);
-
-            if (isHighlight)
-            {
-                float pulse = (Mathf.Sin(Time.time * 8f) + 1f) * 0.5f;
-                GUI.color = new Color(accentCol.r, accentCol.g, accentCol.b, 0.3f + pulse * 0.4f);
-                GUI.DrawTexture(new Rect(x - 4, y - 4, size + 8, size + 8), ringTex);
-            }
-
-            badgeStyle.fontSize = (int)(size * 0.38f);
-            badgeStyle.normal.textColor = pressed ? Color.black : Color.white;
-            GUI.Label(new Rect(x, y + size * 0.22f, size, size * 0.45f), icon, badgeStyle);
-            GUI.color = Color.white;
-
-            smallTextStyle.fontSize = 10;
+            // "STAMINA" label below bar
+            smallTextStyle.fontSize = 9;
             smallTextStyle.fontStyle = FontStyle.Bold;
             smallTextStyle.alignment = TextAnchor.MiddleCenter;
-            smallTextStyle.normal.textColor = isHighlight ? new Color(1.0f, 0.7f, 0.4f) : Color.white;
-            GUI.Label(new Rect(x - 20, y + size + 2, size + 40, 14), title, smallTextStyle);
-
-            badgeStyle.fontSize = 9;
-            badgeStyle.fontStyle = FontStyle.Normal;
-            badgeStyle.normal.textColor = new Color(0.7f, 0.85f, 1.0f);
-            GUI.Label(new Rect(x - 20, y + size + 16, size + 40, 14), hotkey, badgeStyle);
+            smallTextStyle.normal.textColor = new Color(0.65f, 0.85f, 1.0f);
+            GUI.Label(new Rect(sx, sy + barH + 1, barW, 12), "STAMINA", smallTextStyle);
             smallTextStyle.alignment = TextAnchor.MiddleLeft;
         }
 
         // ==============================================================
-        // BOTTOM-LEFT: VIRTUAL JOYSTICK & MOVEMENT DISC
+        // CHAMPIONSHIP AAA CONTROLS LAYOUT (100% MATCHING SCREENSHOT)
         // ==============================================================
-        private void DrawVirtualJoystickAndMovement(float sw, float sh)
+        private void DrawChampionshipControlsLayout(float sw, float sh)
         {
-            float joyRadius = 60f;
-            Vector2 joyCenter = new Vector2(115f, sh - 115f);
+            if (saveNotificationTimer > 0f) saveNotificationTimer -= Time.deltaTime;
+            Color baseCol = GUI.color;
+
+            // ==========================================================
+            // 1. LEFT SIDE CONTROLS (Auto Run, Sprint, Joystick, Backpack)
+            // ==========================================================
+            float joyRadius = 55f * joystickScale;
+            Vector2 joyCenter = new Vector2(125f * (joystickScale / 1.2f), sh - 125f * (joystickScale / 1.2f));
             float joyDiameter = joyRadius * 2f;
 
-            // Base circular track
-            GUI.color = new Color(0.04f, 0.08f, 0.14f, 0.85f);
+            // Auto Run Pill Button (above sprint)
+            if (autoRunEnabled)
+            {
+                float autoW = 94f;
+                float autoH = 26f;
+                float autoX = 35f;
+                float autoY = sh - 250f;
+                Rect autoRect = new Rect(autoX, autoY, autoW, autoH);
+                GUI.color = isAutoRunLocked ? new Color(0.1f, 0.75f, 0.98f, 0.95f) : new Color(0.06f, 0.1f, 0.16f, buttonOpacity);
+                GUI.DrawTexture(autoRect, darkBoxTex);
+                GUI.color = isAutoRunLocked ? Color.cyan : new Color(0.3f, 0.5f, 0.7f, 0.8f);
+                GUI.DrawTexture(new Rect(autoX, autoY, autoW, 2), Texture2D.whiteTexture);
+                GUI.color = Color.white;
+
+                badgeStyle.fontSize = 10;
+                badgeStyle.fontStyle = FontStyle.Bold;
+                badgeStyle.normal.textColor = isAutoRunLocked ? Color.black : Color.white;
+                GUI.Label(autoRect, isAutoRunLocked ? "🏃 Auto Run 🔒" : "🏃 Auto Run 🔓", badgeStyle);
+
+                if (Event.current.type == EventType.MouseDown && autoRect.Contains(Event.current.mousePosition))
+                {
+                    isAutoRunLocked = !isAutoRunLocked;
+                    if (playerController != null) playerController.IsAutoRun = isAutoRunLocked;
+                    WCTAudioSynthesizer.Instance?.PlayUIClick();
+                }
+            }
+
+            // Sprint Circle Button (above joystick)
+            float sprintSize = 52f * buttonScale;
+            float sprintX = 35f;
+            float sprintY = sh - 205f;
+            Rect sprintRect = new Rect(sprintX, sprintY, sprintSize, sprintSize);
+            bool isSprintingNow = (playerController != null && playerController.IsSprinting) || Input.GetKey(KeyCode.LeftShift);
+
+            GUI.color = isSprintingNow ? new Color(0.1f, 0.75f, 0.98f, buttonOpacity) : new Color(0.05f, 0.08f, 0.14f, buttonOpacity);
+            GUI.DrawTexture(sprintRect, circleTex);
+            GUI.color = isSprintingNow ? Color.cyan : new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
+            GUI.DrawTexture(sprintRect, ringTex);
+            badgeStyle.fontSize = (int)(sprintSize * 0.40f);
+            badgeStyle.normal.textColor = isSprintingNow ? Color.black : Color.white;
+            GUI.Label(new Rect(sprintX, sprintY + sprintSize * 0.18f, sprintSize, sprintSize * 0.5f), "🏃", badgeStyle);
+
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 9;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(sprintX - 10, sprintY + sprintSize + 1, sprintSize + 20, 14), "Sprint", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
+
+            if (Event.current.type == EventType.MouseDown && sprintRect.Contains(Event.current.mousePosition))
+            {
+                if (playerController != null) playerController.SetVirtualJoystick(new Vector2(0f, 1f), true);
+            }
+
+            // Virtual Joystick Disc (Matching Reference Image!)
+            GUI.color = new Color(0.04f, 0.08f, 0.14f, joystickOpacity);
             GUI.DrawTexture(new Rect(joyCenter.x - joyRadius, joyCenter.y - joyRadius, joyDiameter, joyDiameter), circleTex);
-            GUI.color = new Color(0.15f, 0.75f, 0.98f, 0.85f);
+            GUI.color = new Color(0.2f, 0.6f, 0.85f, joystickOpacity);
             GUI.DrawTexture(new Rect(joyCenter.x - joyRadius, joyCenter.y - joyRadius, joyDiameter, joyDiameter), ringTex);
 
-            // Cardinal direction chevrons
-            badgeStyle.fontSize = 13;
-            badgeStyle.normal.textColor = new Color(0.6f, 0.85f, 1f, 0.85f);
+            // Cardinal direction arrow indicators
+            badgeStyle.fontSize = (int)(13f * (joystickScale / 1.2f));
+            badgeStyle.normal.textColor = new Color(0.6f, 0.85f, 1f, joystickOpacity);
             GUI.Label(new Rect(joyCenter.x - 10, joyCenter.y - joyRadius + 4, 20, 20), "▲", badgeStyle);
             GUI.Label(new Rect(joyCenter.x - 10, joyCenter.y + joyRadius - 22, 20, 20), "▼", badgeStyle);
             GUI.Label(new Rect(joyCenter.x - joyRadius + 4, joyCenter.y - 10, 20, 20), "◀", badgeStyle);
             GUI.Label(new Rect(joyCenter.x + joyRadius - 22, joyCenter.y - 10, 20, 20), "▶", badgeStyle);
 
-            // Thumb Knob
-            Vector2 knobPos = (joystickPos.sqrMagnitude > 1f) ? joystickPos : joyCenter;
-            float knobRadius = 26f;
-            float knobDiameter = knobRadius * 2f;
+            // Calculate Thumb Knob position (WASD or mouse drag or touch)
+            Vector2 knobPos = joyCenter;
+            float inputX = Input.GetAxisRaw("Horizontal");
+            float inputZ = Input.GetAxisRaw("Vertical");
 
-            GUI.color = new Color(0.1f, 0.5f, 0.85f, 0.95f);
+            if (isMouseDraggingJoy)
+            {
+                Vector2 mousePos = Event.current.mousePosition;
+                Vector2 delta = mousePos - joyCenter;
+                knobPos = joyCenter + Vector2.ClampMagnitude(delta, joyRadius * 0.75f);
+                if (Event.current.type == EventType.MouseUp)
+                {
+                    isMouseDraggingJoy = false;
+                    if (playerController != null) playerController.SetVirtualJoystick(Vector2.zero, false);
+                }
+                else
+                {
+                    Vector2 norm = (knobPos - joyCenter) / (joyRadius * 0.75f);
+                    norm.y = -norm.y; // Invert GUI Y
+                    if (playerController != null) playerController.SetVirtualJoystick(norm, isSprintingNow);
+                }
+            }
+            else if (Mathf.Abs(inputX) > 0.1f || Mathf.Abs(inputZ) > 0.1f)
+            {
+                Vector2 dir = new Vector2(inputX, -inputZ).normalized * (joyRadius * 0.65f);
+                knobPos = joyCenter + dir;
+            }
+
+            // Mouse down on joystick
+            Rect joyTouchRect = new Rect(joyCenter.x - joyRadius, joyCenter.y - joyRadius, joyDiameter, joyDiameter);
+            if (Event.current.type == EventType.MouseDown && joyTouchRect.Contains(Event.current.mousePosition))
+            {
+                isMouseDraggingJoy = true;
+            }
+
+            // Thumb Knob
+            float knobRadius = 24f * joystickScale;
+            float knobDiameter = knobRadius * 2f;
+            GUI.color = new Color(0.12f, 0.55f, 0.90f, joystickOpacity);
             GUI.DrawTexture(new Rect(knobPos.x - knobRadius, knobPos.y - knobRadius, knobDiameter, knobDiameter), circleTex);
             GUI.color = Color.white;
             GUI.DrawTexture(new Rect(knobPos.x - knobRadius, knobPos.y - knobRadius, knobDiameter, knobDiameter), ringTex);
+
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 10;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = new Color(0.7f, 0.88f, 1f);
+                GUI.Label(new Rect(joyCenter.x - 70, joyCenter.y + joyRadius + 4, 140, 16), "Joystick (Move)", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
+
+            // Backpack Button (bottom-left)
+            float bpSize = 36f * buttonScale;
+            Rect bpRect = new Rect(28f, sh - 46f, bpSize, bpSize);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
+            GUI.DrawTexture(bpRect, circleTex);
+            GUI.color = new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
+            GUI.DrawTexture(bpRect, ringTex);
+            badgeStyle.fontSize = (int)(bpSize * 0.45f);
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(bpRect, "🎒", badgeStyle);
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 8;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(28f - 10, sh - 14f, bpSize + 20, 12), "Backpack", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
+
+            // ==========================================================
+            // 2. BOTTOM PRESETS BAR (Matching Reference Image!)
+            // ==========================================================
+            float presetBarY = sh - 32f;
+            float barStartX = sw * 0.20f;
+            
+            // "Layout Presets (Example) v" dropdown pill
+            float dropdownW = 145f;
+            Rect dropRect = new Rect(barStartX, presetBarY, dropdownW, 22f);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, 0.90f);
+            GUI.DrawTexture(dropRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.fontSize = 9;
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = new Color(0.8f, 0.9f, 1.0f);
+            GUI.Label(dropRect, "Layout Presets (Example)  ▾", badgeStyle);
+
+            // Preset pills
+            string[] presetNames = { "Classic (Default)", "Two Thumb", "Left Hand", "Right Hand", "Large Buttons", "Compact" };
+            float curX = barStartX + dropdownW + 8f;
+            for (int p = 0; p < presetNames.Length; p++)
+            {
+                float pillW = (p == 0) ? 105f : 88f;
+                Rect pRect = new Rect(curX, presetBarY, pillW, 22f);
+                bool isSelected = (currentPresetIndex == p);
+                GUI.color = isSelected ? new Color(0.1f, 0.5f, 0.92f, 0.95f) : new Color(0.06f, 0.10f, 0.16f, 0.85f);
+                GUI.DrawTexture(pRect, darkBoxTex);
+                GUI.color = Color.white;
+                badgeStyle.fontSize = 9;
+                badgeStyle.normal.textColor = isSelected ? Color.white : new Color(0.65f, 0.75f, 0.88f);
+                GUI.Label(pRect, presetNames[p], badgeStyle);
+
+                if (Event.current.type == EventType.MouseDown && pRect.Contains(Event.current.mousePosition))
+                {
+                    ApplyPreset(p);
+                    WCTAudioSynthesizer.Instance?.PlayUIClick();
+                }
+
+                curX += pillW + 6f;
+            }
+
+            // Plus (+) custom preset button
+            Rect plusRect = new Rect(curX, presetBarY, 24f, 22f);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, 0.85f);
+            GUI.DrawTexture(plusRect, darkBoxTex);
+            GUI.color = Color.white;
             badgeStyle.fontSize = 11;
             badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(knobPos.x - 12, knobPos.y - 10, 24, 20), "🕹", badgeStyle);
+            GUI.Label(plusRect, "+", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && plusRect.Contains(Event.current.mousePosition))
+            {
+                isCustomizeControlsOpen = true;
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
 
-            // Label below
-            smallTextStyle.fontSize = 10;
-            smallTextStyle.alignment = TextAnchor.MiddleCenter;
-            smallTextStyle.normal.textColor = new Color(0.7f, 0.88f, 1f);
-            GUI.Label(new Rect(joyCenter.x - 65, joyCenter.y + joyRadius + 4, 130, 16), "JOYSTICK / SPRINT", smallTextStyle);
-            smallTextStyle.alignment = TextAnchor.MiddleLeft;
-            GUI.color = Color.white;
-        }
+            // ==========================================================
+            // 3. RIGHT SIDE ACTION CONTROLS (Catch/Tag, Jump, Slide, TPP)
+            // ==========================================================
+            float rightAnchorX = sw - 30f;
+            float rightAnchorY = sh - 30f;
 
-        // ==============================================================
-        // BOTTOM-CENTER: STAMINA BAR (Matching Screenshot!)
-        // ==============================================================
-        private void DrawStaminaMeter(float sw, float sh)
-        {
-            float barW = 280f;
-            float barH = 10f;
-            float sx = (sw - barW) * 0.5f;
-            float sy = sh - 42f;
+            // Large Catch / Tag Button (Primary thumb position)
+            float catchSize = 82f * buttonScale;
+            float catchX = rightAnchorX - 100f * buttonScale;
+            float catchY = rightAnchorY - 140f * buttonScale;
+            Rect catchRect = new Rect(catchX, catchY, catchSize, catchSize);
+            bool catchPressed = Input.GetKey(KeyCode.C) || Input.GetMouseButton(0);
 
-            // Running Athlete Circle Icon
-            float iconSize = 26f;
-            GUI.DrawTexture(new Rect(sx - 34, sy - 8, iconSize, iconSize), darkBoxTex);
-            GUI.DrawTexture(new Rect(sx - 34, sy - 8, iconSize, iconSize), circleTex);
-            badgeStyle.fontSize = 12;
-            badgeStyle.normal.textColor = Color.black;
-            GUI.Label(new Rect(sx - 34, sy - 7, iconSize, iconSize), "🏃", badgeStyle);
+            // Pulsing orange highlight
+            GUI.color = catchPressed ? new Color(0.96f, 0.38f, 0.08f, buttonOpacity) : new Color(0.18f, 0.08f, 0.04f, buttonOpacity);
+            GUI.DrawTexture(catchRect, circleTex);
+            GUI.color = new Color(0.96f, 0.42f, 0.08f, buttonOpacity);
+            GUI.DrawTexture(catchRect, ringTex);
 
-            // Dark meter track
-            GUI.DrawTexture(new Rect(sx, sy, barW, barH), darkBoxTex);
+            float pulse = (Mathf.Sin(Time.time * 7f) + 1f) * 0.5f;
+            GUI.color = new Color(0.96f, 0.45f, 0.08f, 0.25f + pulse * 0.35f);
+            GUI.DrawTexture(new Rect(catchX - 4, catchY - 4, catchSize + 8, catchSize + 8), ringTex);
 
-            // Glowing Cyan Fill
-            float fill = playerController != null ? playerController.StaminaNormalized : 1.0f;
-            GUI.DrawTexture(new Rect(sx, sy, barW * fill, barH), staminaFillTex);
+            badgeStyle.fontSize = (int)(catchSize * 0.42f);
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(catchX, catchY + catchSize * 0.20f, catchSize, catchSize * 0.45f), "✋", badgeStyle);
 
-            // "STAMINA" label below bar
-            smallTextStyle.fontSize = 10;
-            smallTextStyle.fontStyle = FontStyle.Bold;
-            smallTextStyle.normal.textColor = new Color(0.6f, 0.85f, 1.0f);
-            GUI.Label(new Rect(sx, sy + barH + 2, barW, 14), "STAMINA", smallTextStyle);
-        }
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 10;
+                smallTextStyle.fontStyle = FontStyle.Bold;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = new Color(1.0f, 0.72f, 0.45f);
+                GUI.Label(new Rect(catchX - 15, catchY + catchSize + 2, catchSize + 30, 14), "Catch / Tag", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
 
-        // ==============================================================
-        // BOTTOM-RIGHT: ESPORTS ACTION BUTTONS (Touch & Click Enabled)
-        // ==============================================================
-        private void DrawBottomRightActionButtons(float sw, float sh)
-        {
-            float spacing = 86f;
-            float rightX = sw - (spacing * 3) - 25f;
-            float actionY = sh - 110f;
+            if (Event.current.type == EventType.MouseDown && catchRect.Contains(Event.current.mousePosition))
+            {
+                if (playerController != null) playerController.TriggerCatchOrTag();
+            }
 
-            // 1. Jump / Vault Button
-            float jumpSize = 64f;
-            if (DrawInteractiveActionButton(rightX, actionY + 6, jumpSize, "🏃", "JUMP / VAULT", "Space / Tap", new Color(0.12f, 0.45f, 0.85f)))
+            // Jump Button
+            float jumpSize = 64f * buttonScale;
+            float jumpX = rightAnchorX - 225f * buttonScale;
+            float jumpY = rightAnchorY - 85f * buttonScale;
+            Rect jumpRect = new Rect(jumpX, jumpY, jumpSize, jumpSize);
+            bool jumpPressed = Input.GetKey(KeyCode.Space);
+
+            GUI.color = jumpPressed ? new Color(0.12f, 0.45f, 0.85f, buttonOpacity) : new Color(0.04f, 0.08f, 0.14f, buttonOpacity);
+            GUI.DrawTexture(jumpRect, circleTex);
+            GUI.color = new Color(0.25f, 0.55f, 0.85f, buttonOpacity);
+            GUI.DrawTexture(jumpRect, ringTex);
+            badgeStyle.fontSize = (int)(jumpSize * 0.38f);
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(jumpX, jumpY + jumpSize * 0.22f, jumpSize, jumpSize * 0.45f), "🏃", badgeStyle);
+
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 10;
+                smallTextStyle.fontStyle = FontStyle.Bold;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(jumpX - 10, jumpY + jumpSize + 2, jumpSize + 20, 14), "Jump", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
+
+            if (Event.current.type == EventType.MouseDown && jumpRect.Contains(Event.current.mousePosition))
             {
                 if (playerController != null) playerController.TriggerJump();
             }
 
-            // 2. Slide / Crouch Button
-            float slideSize = 64f;
-            if (DrawInteractiveActionButton(rightX + spacing, actionY + 6, slideSize, "🤸", "SLIDE / DUCK", "Ctrl", new Color(0.2f, 0.7f, 0.6f)))
+            // Slide Button
+            float slideSize = 64f * buttonScale;
+            float slideX = rightAnchorX - 150f * buttonScale;
+            float slideY = rightAnchorY - 72f * buttonScale;
+            Rect slideRect = new Rect(slideX, slideY, slideSize, slideSize);
+            bool slidePressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftAlt);
+
+            GUI.color = slidePressed ? new Color(0.2f, 0.7f, 0.6f, buttonOpacity) : new Color(0.04f, 0.08f, 0.14f, buttonOpacity);
+            GUI.DrawTexture(slideRect, circleTex);
+            GUI.color = new Color(0.25f, 0.65f, 0.55f, buttonOpacity);
+            GUI.DrawTexture(slideRect, ringTex);
+            badgeStyle.fontSize = (int)(slideSize * 0.38f);
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(slideX, slideY + slideSize * 0.22f, slideSize, slideSize * 0.45f), "🤸", badgeStyle);
+
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 10;
+                smallTextStyle.fontStyle = FontStyle.Bold;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(slideX - 10, slideY + slideSize + 2, slideSize + 20, 14), "Slide", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
+
+            if (Event.current.type == EventType.MouseDown && slideRect.Contains(Event.current.mousePosition))
             {
                 if (playerController != null) playerController.TriggerSlideOrCrouch();
             }
 
-            // 3. Catch / Tag Action Button (Larger, High-Priority, Vibrant Orange)
-            float tagSize = 76f;
-            if (DrawInteractiveActionButton(rightX + spacing * 2 - 4, actionY - 2, tagSize, "✋", "CATCH / TAG", "C / Click", new Color(0.96f, 0.38f, 0.08f), true))
-            {
-                if (playerController != null) playerController.TriggerCatchOrTag();
-            }
-        }
+            // Mini Vertical Action Buttons (Climb Up ▲, Climb Down ▼, Prone 🤾)
+            float miniW = 34f * buttonScale;
+            float miniH = 26f * buttonScale;
+            float miniX = rightAnchorX - 68f;
 
-        private bool DrawInteractiveActionButton(float x, float y, float size, string icon, string actionLabel, string subLabel, Color accentCol, bool isHighlight = false)
-        {
-            Rect btnRect = new Rect(x, y, size, size);
-            bool clicked = false;
-
-            // Draw circular background
-            GUI.color = isHighlight ? new Color(0.25f, 0.1f, 0.05f, 0.95f) : new Color(0.04f, 0.08f, 0.14f, 0.88f);
-            GUI.DrawTexture(btnRect, circleTex);
-
-            // Ring border
-            GUI.color = accentCol;
-            GUI.DrawTexture(btnRect, ringTex);
-
-            if (isHighlight)
-            {
-                // Pulsing outer halo for Catch/Tag button
-                float pulse = (Mathf.Sin(Time.time * 8f) + 1f) * 0.5f;
-                GUI.color = new Color(accentCol.r, accentCol.g, accentCol.b, 0.3f + pulse * 0.4f);
-                GUI.DrawTexture(new Rect(x - 4, y - 4, size + 8, size + 8), ringTex);
-            }
-
-            // Icon
-            badgeStyle.fontSize = (int)(size * 0.38f);
+            // Climb Up ▲
+            Rect climbUpRect = new Rect(miniX, rightAnchorY - 110f, miniW, miniH);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
+            GUI.DrawTexture(climbUpRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.fontSize = 11;
             badgeStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(x, y + size * 0.22f, size, size * 0.45f), icon, badgeStyle);
-            GUI.color = Color.white;
-
-            // Action name below badge
-            smallTextStyle.fontSize = 10;
-            smallTextStyle.fontStyle = FontStyle.Bold;
-            smallTextStyle.alignment = TextAnchor.MiddleCenter;
-            smallTextStyle.normal.textColor = isHighlight ? new Color(1.0f, 0.7f, 0.4f) : Color.white;
-            GUI.Label(new Rect(x - 20, y + size + 2, size + 40, 14), actionLabel, smallTextStyle);
-
-            // Sub-label below
-            badgeStyle.fontSize = 9;
-            badgeStyle.fontStyle = FontStyle.Normal;
-            badgeStyle.normal.textColor = new Color(0.7f, 0.85f, 1.0f);
-            GUI.Label(new Rect(x - 20, y + size + 16, size + 40, 14), subLabel, badgeStyle);
-            smallTextStyle.alignment = TextAnchor.MiddleLeft;
-
-            // Interactive Click / Tap
-            if (GUI.Button(btnRect, GUIContent.none, GUIStyle.none))
+            GUI.Label(climbUpRect, "▲", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && climbUpRect.Contains(Event.current.mousePosition))
             {
-                clicked = true;
+                if (playerController != null) playerController.TriggerClimb();
             }
 
-            return clicked;
+            // Climb Down ▼
+            Rect climbDownRect = new Rect(miniX, rightAnchorY - 80f, miniW, miniH);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
+            GUI.DrawTexture(climbDownRect, darkBoxTex);
+            GUI.color = Color.white;
+            GUI.Label(climbDownRect, "▼", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && climbDownRect.Contains(Event.current.mousePosition))
+            {
+                if (playerController != null) playerController.TriggerDrop();
+            }
+
+            // Prone / Dive
+            Rect proneRect = new Rect(miniX - 4f, rightAnchorY - 50f, miniW + 8f, miniH);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
+            GUI.DrawTexture(proneRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.fontSize = 10;
+            GUI.Label(proneRect, "🤾", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && proneRect.Contains(Event.current.mousePosition))
+            {
+                if (playerController != null) playerController.TriggerDive();
+            }
+
+            // View (TPP/FPP) Toggle Button
+            float viewSize = 48f * buttonScale;
+            float viewX = rightAnchorX - 105f * buttonScale;
+            float viewY = rightAnchorY - 225f * buttonScale;
+            Rect viewRect = new Rect(viewX, viewY, viewSize, viewSize);
+            bool isTPP = (playerController != null && playerController.IsThirdPerson);
+
+            GUI.color = isTPP ? new Color(0.1f, 0.55f, 0.9f, buttonOpacity) : new Color(0.05f, 0.08f, 0.14f, buttonOpacity);
+            GUI.DrawTexture(viewRect, circleTex);
+            GUI.color = new Color(0.2f, 0.5f, 0.8f, buttonOpacity);
+            GUI.DrawTexture(viewRect, ringTex);
+
+            badgeStyle.fontSize = (int)(viewSize * 0.32f);
+            badgeStyle.fontStyle = FontStyle.Bold;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(viewX, viewY + viewSize * 0.22f, viewSize, viewSize * 0.45f), isTPP ? "TPP" : "FPP", badgeStyle);
+
+            if (showLabels)
+            {
+                smallTextStyle.fontSize = 9;
+                smallTextStyle.alignment = TextAnchor.MiddleCenter;
+                smallTextStyle.normal.textColor = Color.white;
+                GUI.Label(new Rect(viewX - 20, viewY + viewSize + 2, viewSize + 40, 14), "View (TPP/FPP)", smallTextStyle);
+                smallTextStyle.alignment = TextAnchor.MiddleLeft;
+            }
+
+            if (Event.current.type == EventType.MouseDown && viewRect.Contains(Event.current.mousePosition))
+            {
+                if (playerController != null) playerController.TogglePerspective();
+            }
+
+            // Eye / Free Look Button
+            float eyeSize = 34f * buttonScale;
+            Rect eyeRect = new Rect(rightAnchorX - 44f, rightAnchorY - 220f, eyeSize, eyeSize);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
+            GUI.DrawTexture(eyeRect, circleTex);
+            GUI.color = new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
+            GUI.DrawTexture(eyeRect, ringTex);
+            badgeStyle.fontSize = 13;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(eyeRect, "👁", badgeStyle);
+
+            // Quick Chat Button
+            Rect chatRect = new Rect(rightAnchorX - 44f, rightAnchorY - 175f, eyeSize, eyeSize);
+            GUI.color = new Color(0.06f, 0.10f, 0.16f, buttonOpacity);
+            GUI.DrawTexture(chatRect, circleTex);
+            GUI.color = new Color(0.3f, 0.5f, 0.7f, buttonOpacity);
+            GUI.DrawTexture(chatRect, ringTex);
+            badgeStyle.fontSize = 12;
+            GUI.Label(chatRect, "💬", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && chatRect.Contains(Event.current.mousePosition))
+            {
+                DisplayBanner("TEAM ALPHA: Keep pressure on the perimeter!", 2.0f);
+            }
+
+            // ==========================================================
+            // 4. "CUSTOMIZE CONTROLS" RIGHT-HAND DRAWER PANEL
+            // ==========================================================
+            if (isCustomizeControlsOpen)
+            {
+                DrawCustomizeControlsDrawer(sw, sh);
+            }
+
+            GUI.color = baseCol;
         }
 
         // ==============================================================
-        // GYROSCOPE HUD TOGGLE & INDICATOR
+        // "CUSTOMIZE CONTROLS" DRAWER PANEL (Matching Reference Image!)
         // ==============================================================
-        private void DrawGyroscopeToggle(float sw)
+        private void DrawCustomizeControlsDrawer(float sw, float sh)
         {
-            float btnW = 120f;
-            float btnH = 26f;
-            float btnX = sw - btnW - 225f;
-            float btnY = 12f;
+            float panelW = 320f;
+            float panelH = sh - 30f;
+            float panelX = sw - panelW - 15f;
+            float panelY = 15f;
+            Rect panelRect = new Rect(panelX, panelY, panelW, panelH);
 
-            bool gyroOn = (playerController != null && playerController.EnableGyroscope);
-            Color gyroCol = gyroOn ? new Color(0.1f, 0.85f, 0.45f) : new Color(0.6f, 0.6f, 0.6f);
-
-            GUI.color = new Color(0.04f, 0.08f, 0.14f, 0.85f);
-            GUI.DrawTexture(new Rect(btnX, btnY, btnW, btnH), darkBoxTex);
-            GUI.color = gyroCol;
-            GUI.DrawTexture(new Rect(btnX, btnY, btnW, 2f), Texture2D.whiteTexture);
+            // Frosted background card
+            GUI.color = new Color(0.05f, 0.08f, 0.14f, 0.96f);
+            GUI.DrawTexture(panelRect, darkBoxTex);
+            GUI.color = new Color(0.1f, 0.65f, 0.95f, 0.95f);
+            GUI.DrawTexture(new Rect(panelX, panelY, panelW, 3), Texture2D.whiteTexture);
             GUI.color = Color.white;
+
+            float curY = panelY + 14f;
+
+            // Header: CUSTOMIZE CONTROLS + [X] Close
+            titleStyle.fontSize = 16;
+            titleStyle.fontStyle = FontStyle.Bold;
+            titleStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(panelX + 16, curY, 220, 22), "CUSTOMIZE CONTROLS", titleStyle);
+
+            Rect closeRect = new Rect(panelX + panelW - 32, curY, 22, 22);
+            badgeStyle.fontSize = 13;
+            badgeStyle.normal.textColor = new Color(0.7f, 0.8f, 0.9f);
+            GUI.Label(closeRect, "✕", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && closeRect.Contains(Event.current.mousePosition))
+            {
+                isCustomizeControlsOpen = false;
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
+
+            curY += 22f;
+            smallTextStyle.fontSize = 10;
+            smallTextStyle.normal.textColor = new Color(0.6f, 0.75f, 0.9f);
+            GUI.Label(new Rect(panelX + 16, curY, panelW - 32, 16), "Drag and move buttons to adjust your layout", smallTextStyle);
+
+            curY += 22f;
+
+            // Control Preset Dropdown
+            float dropW = panelW - 32f;
+            Rect presetDropRect = new Rect(panelX + 16, curY, dropW, 26f);
+            GUI.color = new Color(0.08f, 0.12f, 0.20f, 0.9f);
+            GUI.DrawTexture(presetDropRect, darkBoxTex);
+            GUI.color = Color.white;
+
+            smallTextStyle.fontSize = 11;
+            smallTextStyle.normal.textColor = new Color(0.75f, 0.85f, 1.0f);
+            GUI.Label(new Rect(panelX + 24, curY + 4, 120, 18), "Control Preset", smallTextStyle);
 
             badgeStyle.fontSize = 11;
-            badgeStyle.fontStyle = FontStyle.Bold;
-            badgeStyle.normal.textColor = gyroCol;
-            string gyroText = gyroOn ? "📱 GYRO: ON" : "📱 GYRO: OFF";
+            badgeStyle.normal.textColor = Color.white;
+            string[] presetLabels = { "Classic 1", "Two Thumb", "Left Hand", "Right Hand", "Large Buttons", "Compact" };
+            GUI.Label(new Rect(panelX + dropW - 80, curY + 4, 90, 18), $"{presetLabels[currentPresetIndex]}  ▾", badgeStyle);
 
-            if (GUI.Button(new Rect(btnX, btnY, btnW, btnH), gyroText, badgeStyle))
+            if (Event.current.type == EventType.MouseDown && presetDropRect.Contains(Event.current.mousePosition))
             {
-                if (playerController != null)
+                currentPresetIndex = (currentPresetIndex + 1) % presetLabels.Length;
+                ApplyPreset(currentPresetIndex);
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
+
+            curY += 34f;
+
+            // Category Tabs: Move, Action, View, Combat
+            string[] tabNames = { "Move", "Action", "View", "Combat" };
+            float tabW = (panelW - 32f) / 4f;
+            for (int t = 0; t < tabNames.Length; t++)
+            {
+                Rect tr = new Rect(panelX + 16 + t * tabW, curY, tabW - 4, 26f);
+                bool isSel = (customizeTabIndex == t);
+                GUI.color = isSel ? new Color(0.12f, 0.55f, 0.95f, 0.95f) : new Color(0.08f, 0.12f, 0.20f, 0.85f);
+                GUI.DrawTexture(tr, darkBoxTex);
+                GUI.color = Color.white;
+
+                badgeStyle.fontSize = 11;
+                badgeStyle.normal.textColor = isSel ? Color.white : new Color(0.6f, 0.75f, 0.9f);
+                GUI.Label(tr, tabNames[t], badgeStyle);
+
+                if (Event.current.type == EventType.MouseDown && tr.Contains(Event.current.mousePosition))
                 {
-                    playerController.EnableGyroscope = !playerController.EnableGyroscope;
+                    customizeTabIndex = t;
+                    WCTAudioSynthesizer.Instance?.PlayUIClick();
                 }
             }
+
+            curY += 36f;
+
+            // Sliders:
+            // 1. Joystick Size (50% - 150%)
+            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Size", ref joystickScale, 0.70f, 1.50f, "{0:0}%", 100f);
+
+            // 2. Joystick Opacity (20% - 100%)
+            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Joystick Opacity", ref joystickOpacity, 0.20f, 1.0f, "{0:0}%", 100f);
+
+            // 3. Button Size (50% - 150%)
+            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Button Size", ref buttonScale, 0.70f, 1.50f, "{0:0}%", 100f);
+
+            // 4. Button Opacity (20% - 100%)
+            DrawCustomizerSlider(panelX + 16, ref curY, panelW - 32, "Button Opacity", ref buttonOpacity, 0.20f, 1.0f, "{0:0}%", 100f);
+
+            curY += 6f;
+
+            // Toggles:
+            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Show Labels", ref showLabels);
+            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Auto Run Button", ref autoRunEnabled);
+            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Quick Sprint (Double Tap)", ref quickSprintEnabled);
+            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Hold to Crouch", ref holdToCrouch);
+            DrawCustomizerToggle(panelX + 16, ref curY, panelW - 32, "Tap to Slide", ref tapToSlide);
+
+            curY += 10f;
+
+            // Layout Management: Save Layout | Reset | Default
+            float btnW = (panelW - 32f - 12f) / 3f;
+            float btnH = 28f;
+
+            // Save Layout (Blue)
+            Rect saveRect = new Rect(panelX + 16, curY, btnW, btnH);
+            GUI.color = new Color(0.1f, 0.52f, 0.95f, 0.95f);
+            GUI.DrawTexture(saveRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.fontSize = 10;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(saveRect, "Save Layout", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && saveRect.Contains(Event.current.mousePosition))
+            {
+                SaveLayoutSettings();
+                saveNotificationTimer = 2.5f;
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
+
+            // Reset (Dark)
+            Rect resetRect = new Rect(panelX + 16 + btnW + 6f, curY, btnW, btnH);
+            GUI.color = new Color(0.12f, 0.16f, 0.24f, 0.95f);
+            GUI.DrawTexture(resetRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.normal.textColor = new Color(0.8f, 0.9f, 1f);
+            GUI.Label(resetRect, "Reset", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && resetRect.Contains(Event.current.mousePosition))
+            {
+                LoadLayoutSettings();
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
+
+            // Default (Red accent with reload icon)
+            Rect defRect = new Rect(panelX + 16 + (btnW + 6f) * 2f, curY, btnW, btnH);
+            GUI.color = new Color(0.75f, 0.18f, 0.15f, 0.95f);
+            GUI.DrawTexture(defRect, darkBoxTex);
+            GUI.color = Color.white;
+            badgeStyle.normal.textColor = Color.white;
+            GUI.Label(defRect, "🔄 Default", badgeStyle);
+            if (Event.current.type == EventType.MouseDown && defRect.Contains(Event.current.mousePosition))
+            {
+                ResetToDefaults();
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
+
+            // Feedback banner if saved
+            if (saveNotificationTimer > 0f)
+            {
+                Rect noteRect = new Rect(panelX + 16, curY + btnH + 6f, panelW - 32, 22f);
+                GUI.color = new Color(0.08f, 0.55f, 0.25f, 0.95f);
+                GUI.DrawTexture(noteRect, darkBoxTex);
+                GUI.color = Color.white;
+                badgeStyle.fontSize = 9;
+                GUI.Label(noteRect, "✓ LAYOUT SAVED SUCCESSFULLY!", badgeStyle);
+            }
+        }
+
+        private void DrawCustomizerSlider(float x, ref float y, float w, string label, ref float value, float minVal, float maxVal, string format, float multiplier)
+        {
+            smallTextStyle.fontSize = 11;
+            smallTextStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x, y, w - 50, 18), label, smallTextStyle);
+
+            badgeStyle.fontSize = 11;
+            badgeStyle.normal.textColor = new Color(0.7f, 0.85f, 1.0f);
+            GUI.Label(new Rect(x + w - 45, y, 45, 18), string.Format(format, value * multiplier), badgeStyle);
+
+            y += 18f;
+
+            // Slider Track
+            float trackH = 4f;
+            float trackY = y + 7f;
+            GUI.color = new Color(0.12f, 0.22f, 0.35f, 0.9f);
+            GUI.DrawTexture(new Rect(x, trackY, w, trackH), Texture2D.whiteTexture);
+
+            // Fill
+            float frac = Mathf.Clamp01((value - minVal) / (maxVal - minVal));
+            GUI.color = new Color(0.1f, 0.65f, 0.95f, 0.95f);
+            GUI.DrawTexture(new Rect(x, trackY, w * frac, trackH), Texture2D.whiteTexture);
+
+            // Knob
+            float knobX = x + w * frac - 7f;
+            GUI.color = Color.white;
+            GUI.DrawTexture(new Rect(knobX, y + 2, 14, 14), circleTex);
+
+            // Mouse interaction
+            Rect slideRect = new Rect(x, y, w, 18);
+            if (Event.current.type == EventType.MouseDown || Event.current.type == EventType.MouseDrag)
+            {
+                if (slideRect.Contains(Event.current.mousePosition))
+                {
+                    float mouseFrac = Mathf.Clamp01((Event.current.mousePosition.x - x) / w);
+                    value = Mathf.Lerp(minVal, maxVal, mouseFrac);
+                }
+            }
+
+            y += 24f;
+        }
+
+        private void DrawCustomizerToggle(float x, ref float y, float w, string label, ref bool state)
+        {
+            smallTextStyle.fontSize = 11;
+            smallTextStyle.normal.textColor = Color.white;
+            GUI.Label(new Rect(x, y, w - 50, 20), label, smallTextStyle);
+
+            // Modern slider switch
+            float swW = 38f;
+            float swH = 18f;
+            float swX = x + w - swW;
+            Rect swRect = new Rect(swX, y + 1, swW, swH);
+
+            GUI.color = state ? new Color(0.1f, 0.65f, 0.95f, 0.95f) : new Color(0.12f, 0.16f, 0.24f, 0.9f);
+            GUI.DrawTexture(swRect, darkBoxTex);
+
+            float thumbX = state ? (swX + swW - 16f) : (swX + 2f);
+            GUI.color = Color.white;
+            GUI.DrawTexture(new Rect(thumbX, y + 2, 14, 14), circleTex);
+
+            if (Event.current.type == EventType.MouseDown && swRect.Contains(Event.current.mousePosition))
+            {
+                state = !state;
+                WCTAudioSynthesizer.Instance?.PlayUIClick();
+            }
+
+            y += 24f;
+        }
+
+        private void ApplyPreset(int index)
+        {
+            currentPresetIndex = index;
+            switch (index)
+            {
+                case 0: // Classic (Default)
+                    joystickScale = 1.20f;
+                    joystickOpacity = 0.80f;
+                    buttonScale = 1.10f;
+                    buttonOpacity = 0.85f;
+                    break;
+                case 1: // Two Thumb
+                    joystickScale = 1.30f;
+                    joystickOpacity = 0.85f;
+                    buttonScale = 1.25f;
+                    buttonOpacity = 0.90f;
+                    break;
+                case 2: // Left Hand
+                    joystickScale = 1.15f;
+                    buttonScale = 1.15f;
+                    break;
+                case 3: // Right Hand
+                    joystickScale = 1.20f;
+                    buttonScale = 1.10f;
+                    break;
+                case 4: // Large Buttons
+                    joystickScale = 1.35f;
+                    buttonScale = 1.40f;
+                    joystickOpacity = 0.90f;
+                    buttonOpacity = 0.90f;
+                    break;
+                case 5: // Compact
+                    joystickScale = 0.90f;
+                    buttonScale = 0.85f;
+                    joystickOpacity = 0.75f;
+                    buttonOpacity = 0.80f;
+                    break;
+            }
+        }
+
+        private void SaveLayoutSettings()
+        {
+            PlayerPrefs.SetFloat("WCT_JoyScale", joystickScale);
+            PlayerPrefs.SetFloat("WCT_JoyOpacity", joystickOpacity);
+            PlayerPrefs.SetFloat("WCT_BtnScale", buttonScale);
+            PlayerPrefs.SetFloat("WCT_BtnOpacity", buttonOpacity);
+            PlayerPrefs.SetInt("WCT_ShowLabels", showLabels ? 1 : 0);
+            PlayerPrefs.SetInt("WCT_AutoRun", autoRunEnabled ? 1 : 0);
+            PlayerPrefs.SetInt("WCT_TapSlide", tapToSlide ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        private void LoadLayoutSettings()
+        {
+            joystickScale = PlayerPrefs.GetFloat("WCT_JoyScale", 1.20f);
+            joystickOpacity = PlayerPrefs.GetFloat("WCT_JoyOpacity", 0.80f);
+            buttonScale = PlayerPrefs.GetFloat("WCT_BtnScale", 1.10f);
+            buttonOpacity = PlayerPrefs.GetFloat("WCT_BtnOpacity", 0.85f);
+            showLabels = PlayerPrefs.GetInt("WCT_ShowLabels", 1) == 1;
+            autoRunEnabled = PlayerPrefs.GetInt("WCT_AutoRun", 1) == 1;
+            tapToSlide = PlayerPrefs.GetInt("WCT_TapSlide", 1) == 1;
+        }
+
+        private void ResetToDefaults()
+        {
+            ApplyPreset(0);
+            showLabels = true;
+            autoRunEnabled = true;
+            quickSprintEnabled = true;
+            holdToCrouch = false;
+            tapToSlide = true;
         }
 
         // ==============================================================
@@ -1276,7 +1784,7 @@ namespace WorldChaseTag.UI
             GUI.Label(new Rect(remX + 10, remY + 6, remW - 20, 16), "QUICK CONTROLS REMINDER", badgeStyle);
             smallTextStyle.fontSize = 10;
             smallTextStyle.normal.textColor = Color.white;
-            GUI.Label(new Rect(remX + 10, remY + 24, remW - 20, 20), "[W A S D] Move  •  [Shift] Sprint  •  [Space] Jump/Vault  •  [Ctrl] Slide  •  [F] Tag  •  [Esc] Pause", smallTextStyle);
+            GUI.Label(new Rect(remX + 10, remY + 24, remW - 20, 20), "[W A S D] Move  •  [Shift] Sprint  •  [Space] Jump/Vault  •  [Ctrl] Slide  •  [C] Catch/Tag  •  [V] View TPP/FPP  •  [Esc] Pause", smallTextStyle);
         }
 
         private bool DrawPauseButton(Rect rect, string mainText, string subText, bool isActive)
