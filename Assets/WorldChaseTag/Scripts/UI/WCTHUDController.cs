@@ -233,6 +233,20 @@ namespace WorldChaseTag.UI
             float joyRadius = 60f;
             Vector2 joyCenter = new Vector2(115f, sh - 115f);
 
+            // Action button touch detection rectangles
+            float spacing = 86f;
+            float rightX = sw - (spacing * 3) - 25f;
+            float actionY = sh - 110f;
+            Rect jumpRect = new Rect(rightX - 15f, actionY - 15f, 90f, 90f);
+            Rect slideRect = new Rect(rightX + spacing - 15f, actionY - 15f, 90f, 90f);
+            Rect catchRect = new Rect(rightX + spacing * 2 - 20f, actionY - 24f, 110f, 110f);
+
+            float gyroW = 120f;
+            float gyroH = 28f;
+            float gyroX = sw - gyroW - 225f;
+            float gyroY = 12f;
+            Rect gyroRect = new Rect(gyroX - 10f, gyroY - 6f, gyroW + 20f, gyroH + 16f);
+
             if (Input.touchCount > 0)
             {
                 for (int i = 0; i < Input.touchCount; i++)
@@ -241,8 +255,33 @@ namespace WorldChaseTag.UI
                     Vector2 screenPos = touch.position;
                     Vector2 guiPos = new Vector2(screenPos.x, sh - screenPos.y);
 
-                    // Left touch zone: Virtual Joystick
-                    if (guiPos.x < sw * 0.45f && guiPos.y > sh * 0.35f)
+                    // 1. Direct Multi-Touch Action Buttons (Instant response on touch down)
+                    if (touch.phase == TouchPhase.Began)
+                    {
+                        if (catchRect.Contains(guiPos))
+                        {
+                            playerController.TriggerCatchOrTag();
+                            continue;
+                        }
+                        if (jumpRect.Contains(guiPos))
+                        {
+                            playerController.TriggerJump();
+                            continue;
+                        }
+                        if (slideRect.Contains(guiPos))
+                        {
+                            playerController.TriggerSlideOrCrouch();
+                            continue;
+                        }
+                        if (gyroRect.Contains(guiPos))
+                        {
+                            playerController.EnableGyroscope = !playerController.EnableGyroscope;
+                            continue;
+                        }
+                    }
+
+                    // 2. Left touch zone: Virtual Joystick
+                    if (guiPos.x < sw * 0.45f && guiPos.y > sh * 0.25f)
                     {
                         if (touch.phase == TouchPhase.Began && joystickFingerId == -1)
                         {
@@ -261,7 +300,7 @@ namespace WorldChaseTag.UI
                             joystickPos = joyCenter + dir * clampedDist;
 
                             Vector2 moveInput = new Vector2(offset.x / joyRadius, -offset.y / joyRadius);
-                            bool sprint = dist > (joyRadius * 0.75f);
+                            bool sprint = dist > (joyRadius * 0.70f);
                             playerController.SetVirtualJoystick(moveInput, sprint);
                         }
                         else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
@@ -271,8 +310,8 @@ namespace WorldChaseTag.UI
                             playerController.SetVirtualJoystick(Vector2.zero, false);
                         }
                     }
-                    // Right touch zone: Swipe Look (excluding bottom right buttons area)
-                    else if (guiPos.x > sw * 0.45f && guiPos.y < sh * 0.72f)
+                    // 3. Right touch zone: Swipe Look (excluding bottom-right buttons area)
+                    else if (guiPos.x > sw * 0.40f && !catchRect.Contains(guiPos) && !jumpRect.Contains(guiPos) && !slideRect.Contains(guiPos))
                     {
                         if (touch.phase == TouchPhase.Began && swipeLookFingerId == -1)
                         {
@@ -283,7 +322,7 @@ namespace WorldChaseTag.UI
                         {
                             if (touch.phase == TouchPhase.Moved)
                             {
-                                Vector2 delta = (touch.position - lastSwipePos) * 0.15f;
+                                Vector2 delta = (touch.position - lastSwipePos) * 0.16f;
                                 playerController.AddTouchLookDelta(new Vector2(delta.x, delta.y));
                                 lastSwipePos = touch.position;
                             }

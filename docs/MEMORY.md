@@ -85,6 +85,21 @@
 - **Permanent Fix:** Removed invalid runtime `.tag` assignments in `WCTSceneCoordinator.cs`.
 - **Files Affected:** `Assets/WorldChaseTag/Scripts/Core/WCTSceneCoordinator.cs`
 
+#### [BUG-006]: Movement Snagging, Obstacle Sticking, Unresponsive Catch/Tag & Multi-Touch Button Conflicts
+- **Error Signature:** Player getting stuck against obstacles when running; unable to vault thin hurdles; catching/tagging failing or feeling unresponsive; on-screen Catch/Tag button ignored while moving the virtual joystick on mobile.
+- **Root Cause:**
+  1. **Spawn Collision & Step Offset**: The Chaser spawned at `z = -5.2f` behind an 0.82m tall solid platform at `z = -4.15f`. With default 0.3m `stepOffset`, the player immediately slammed into the wall at spawn. Additionally, colliding with walls killed velocity, turning `IsSprinting` false and preventing vault detection.
+  2. **Thin Hurdle Detection**: Vault detection cast downward at `wallHit.point + forward * 0.4f`, which completely overshot thin hurdle rails (~0.1m wide), hitting the floor behind it and calculating obstacle height as 0.
+  3. **Multi-Touch Button Block**: In IMGUI, `GUI.Button` only responded to primary touch (finger 0). When the player held the virtual joystick with their left thumb, secondary thumb taps on the Catch/Tag button were discarded by Unity IMGUI.
+  4. **Tag Reach & Occlusion**: `WCTTagSystem` had a narrow 1.35m reach and checked `hit.transform == activeEvaderTransform`. Since athlete models use child body parts, hits on limbs/torso failed equality checks. Furthermore, line-of-sight raycasts occluded on the characters' own CharacterControllers.
+- **Permanent Fix:**
+  1. Configured `CharacterController` on player and AI with `stepOffset = 0.5f`, `slopeLimit = 60f`, `skinWidth = 0.03f`, and dynamic wall-tangent velocity projection (`Vector3.ProjectOnPlane`).
+  2. Elevated the starting plate and spawn point in `QuadArenaBuilder.cs` to sit on the starting platform overlooking the arena, eliminating the spawn obstruction.
+  3. Upgraded parkour ledge sampling to multi-distance offsets (`0.12f`, `0.28f`, `0.45f`) so thin hurdles and deep blocks vault smoothly.
+  4. Implemented direct multi-touch button dispatch in `WCTHUDController.UpdateMobileTouchInput` using screen-coordinate hit rectangles (`catchRect`, `jumpRect`, `slideRect`, `gyroRect`), executing actions instantly on touch down even while joystick is held.
+  5. Enhanced `WCTTagSystem` with generous 2.2m reach, 160° forward cone, hierarchy-aware evader resolution (`IsChildOf`), self-occlusion filtering, forward lunge boost on tag strike, and audio feedback.
+- **Files Affected:** `Assets/WorldChaseTag/Scripts/Combat/WCTTagSystem.cs`, `Assets/WorldChaseTag/Scripts/Movement/WCTParkourController.cs`, `Assets/WorldChaseTag/Scripts/Arena/QuadArenaBuilder.cs`, `Assets/WorldChaseTag/Scripts/Editor/WCTSceneBuilder.cs`, `Assets/WorldChaseTag/Scripts/Core/WCTSceneCoordinator.cs`, `Assets/WorldChaseTag/Scripts/UI/WCTHUDController.cs`, `Assets/WorldChaseTag/Scripts/AI/WCTAgentMotor.cs`, `Assets/WorldChaseTag/Scripts/AI/WCTChaserAI.cs`
+
 ---
 
 ## 3. Architecture Decisions & Inviolable Conventions

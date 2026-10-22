@@ -9,8 +9,8 @@ namespace WorldChaseTag.Combat
         public static WCTTagSystem Instance { get; private set; }
 
         [Header("Tag Reach & Detection")]
-        [SerializeField] private float tagReachDistance = 1.35f;
-        [SerializeField] private float tagSweepRadius = 0.35f;
+        [SerializeField] private float tagReachDistance = 2.2f;
+        [SerializeField] private float tagSweepRadius = 0.55f;
         [SerializeField] private LayerMask hitLayers = ~0;
         [SerializeField] private LayerMask obstacleOcclusionLayers = ~0;
 
@@ -48,51 +48,89 @@ namespace WorldChaseTag.Combat
                 return false;
             }
 
-            // Continuous capsule sweep forward to prevent fast-movement tunneling
+            // Audio feedback for reach attempt
+            WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayVaultWhoosh();
+
+            // 1. Continuous capsule sweep forward to prevent fast-movement tunneling
             Ray ray = new Ray(origin, forward);
             RaycastHit[] hits = Physics.SphereCastAll(ray, tagSweepRadius, tagReachDistance, hitLayers, QueryTriggerInteraction.Ignore);
 
             foreach (var hit in hits)
             {
-                // Check if hit object is the Evader
-                if (hit.collider.CompareTag("Evader") || (activeEvaderTransform != null && hit.transform == activeEvaderTransform))
+                // Check if hit object is the Evader (root or child)
+                bool isEvader = false;
+                if (activeEvaderTransform != null)
+                {
+                    if (hit.transform == activeEvaderTransform || hit.transform.IsChildOf(activeEvaderTransform) || hit.transform.root == activeEvaderTransform.root)
+                    {
+                        isEvader = true;
+                    }
+                }
+
+                if (isEvader)
                 {
                     // Check line of sight (not occluded by walls or obstacles)
                     Vector3 directionToEvader = (hit.point - origin).normalized;
                     float distanceToHit = Vector3.Distance(origin, hit.point);
 
-                    if (Physics.Raycast(origin, directionToEvader, out RaycastHit wallHit, distanceToHit - 0.05f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore))
+                    RaycastHit[] occludes = Physics.RaycastAll(origin, directionToEvader, distanceToHit - 0.1f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore);
+                    bool blocked = false;
+                    foreach (var occ in occludes)
                     {
-                        if (wallHit.collider != hit.collider)
-                        {
-                            // Tag blocked by obstacle
-                            continue;
-                        }
+                        if (activeChaserTransform != null && (occ.transform == activeChaserTransform || occ.transform.IsChildOf(activeChaserTransform))) continue;
+                        if (activeEvaderTransform != null && (occ.transform == activeEvaderTransform || occ.transform.IsChildOf(activeEvaderTransform))) continue;
+                        blocked = true;
+                        break;
                     }
+
+                    if (blocked) continue;
 
                     // Valid tag confirmed!
                     OnTagVisualEffect?.Invoke(hit.point);
+                    WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayTagSound();
                     WCTMatchController.Instance.ResolveTag(WCTMatchController.Instance.TimeRemaining);
                     return true;
                 }
             }
 
-            // Proximity check fallback for near-contact
+            // 2. Proximity check fallback for near-contact within forward 160-degree arc
             if (activeEvaderTransform != null && activeChaserTransform != null)
             {
-                float dist = Vector3.Distance(activeChaserTransform.position, activeEvaderTransform.position);
-                if (dist <= 1.25f)
-                {
-                    Vector3 losOrigin = activeChaserTransform.position + Vector3.up * 1.0f;
-                    Vector3 losTarget = activeEvaderTransform.position + Vector3.up * 1.0f;
-                    Vector3 toEvader = losTarget - losOrigin;
+                Vector3 chaserPos = activeChaserTransform.position;
+                Vector3 evaderPos = activeEvaderTransform.position;
+                float dist = Vector3.Distance(chaserPos, evaderPos);
 
-                    if (!Physics.Raycast(losOrigin, toEvader.normalized, toEvader.magnitude - 0.1f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore))
+                if (dist <= tagReachDistance + 0.3f)
+                {
+                    Vector3 toEvader = evaderPos - chaserPos;
+                    toEvader.y = 0f;
+                    float angle = Vector3.Angle(activeChaserTransform.forward, toEvader.normalized);
+
+                    // Must be within 80 degrees of forward direction
+                    if (angle <= 80f)
                     {
-                        Vector3 contactPoint = (losOrigin + losTarget) * 0.5f;
-                        OnTagVisualEffect?.Invoke(contactPoint);
-                        WCTMatchController.Instance.ResolveTag(WCTMatchController.Instance.TimeRemaining);
-                        return true;
+                        Vector3 losOrigin = chaserPos + Vector3.up * 1.0f;
+                        Vector3 losTarget = evaderPos + Vector3.up * 1.0f;
+                        Vector3 losDir = losTarget - losOrigin;
+
+                        RaycastHit[] occludes = Physics.RaycastAll(losOrigin, losDir.normalized, losDir.magnitude - 0.1f, obstacleOcclusionLayers, QueryTriggerInteraction.Ignore);
+                        bool blocked = false;
+                        foreach (var occ in occludes)
+                        {
+                            if (occ.transform == activeChaserTransform || occ.transform.IsChildOf(activeChaserTransform)) continue;
+                            if (occ.transform == activeEvaderTransform || occ.transform.IsChildOf(activeEvaderTransform)) continue;
+                            blocked = true;
+                            break;
+                        }
+
+                        if (!blocked)
+                        {
+                            Vector3 contactPoint = (losOrigin + losTarget) * 0.5f;
+                            OnTagVisualEffect?.Invoke(contactPoint);
+                            WorldChaseTag.Audio.WCTAudioSynthesizer.Instance?.PlayTagSound();
+                            WCTMatchController.Instance.ResolveTag(WCTMatchController.Instance.TimeRemaining);
+                            return true;
+                        }
                     }
                 }
             }

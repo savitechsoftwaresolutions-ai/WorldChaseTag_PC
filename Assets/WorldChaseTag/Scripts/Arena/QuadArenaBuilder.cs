@@ -42,18 +42,18 @@ namespace WorldChaseTag.Arena
             floor.transform.localScale = new Vector3(arenaWidth, 0.5f, arenaLength);
             ApplyMaterial(floor, WCTMaterialPalette.GetFloorMaterial());
 
-            // 2. Chaser Footprint Starting Plate
+            // 2. Chaser Footprint Starting Plate (Elevated on Starting Platform matching screenshot!)
             GameObject plateObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             plateObj.name = "ChaserStartingPlate";
             plateObj.transform.parent = transform;
-            plateObj.transform.localPosition = new Vector3(0f, 0.02f, -5.2f);
+            plateObj.transform.localPosition = new Vector3(0f, 0.83f, -4.15f);
             plateObj.transform.localScale = new Vector3(1.2f, 0.04f, 1.2f);
             DestroyImmediate(plateObj.GetComponent<Collider>());
             ApplyMaterial(plateObj, WCTMaterialPalette.GetChaserPlateMaterial(false));
 
             GameObject chaserSpawnObj = new GameObject("ChaserSpawnPoint");
             chaserSpawnObj.transform.parent = transform;
-            chaserSpawnObj.transform.localPosition = new Vector3(0f, 0.1f, -5.2f);
+            chaserSpawnObj.transform.localPosition = new Vector3(0f, 0.85f, -4.15f);
             chaserSpawnObj.transform.localRotation = Quaternion.identity;
             chaserPlateSpawn = chaserSpawnObj.transform;
 

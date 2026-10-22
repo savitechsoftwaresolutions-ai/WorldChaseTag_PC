@@ -12,7 +12,7 @@ namespace WorldChaseTag.AI
         [SerializeField] private LayerMask obstacleLayer = ~0;
 
         [Header("Tactics & Interception")]
-        [SerializeField] private float tagReach = 1.3f;
+        [SerializeField] private float tagReach = 2.0f;
         [SerializeField] private float leadTimePrediction = 0.6f;
         [SerializeField] private float pathRecalculateRate = 0.12f;
 

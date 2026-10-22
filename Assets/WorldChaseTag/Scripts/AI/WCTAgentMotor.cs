@@ -81,6 +81,15 @@ namespace WorldChaseTag.AI
             Vector3 finalMove = currentVelocity + Vector3.up * verticalVelocity;
             controller.Move(finalMove * Time.deltaTime);
 
+            // Wall slide resolution: prevent AI from getting stuck against walls
+            if ((controller.collisionFlags & CollisionFlags.Sides) != 0 && currentVelocity.sqrMagnitude > 0.01f)
+            {
+                if (Physics.Raycast(transform.position + Vector3.up * 0.6f, currentVelocity.normalized, out RaycastHit wallGlanceHit, 0.65f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                {
+                    currentVelocity = Vector3.ProjectOnPlane(currentVelocity, wallGlanceHit.normal);
+                }
+            }
+
             if (navMeshAgent != null && navMeshAgent.isOnNavMesh)
             {
                 navMeshAgent.nextPosition = transform.position;
@@ -91,13 +100,33 @@ namespace WorldChaseTag.AI
         {
             if (isPerformingParkour) return;
 
-            Vector3 origin = transform.position + Vector3.up * 0.5f;
             Vector3 forward = transform.forward;
+            RaycastHit wallHit;
+            bool hitWall = Physics.Raycast(transform.position + Vector3.up * 0.55f, forward, out wallHit, 1.4f, obstacleLayer, QueryTriggerInteraction.Ignore) ||
+                           Physics.Raycast(transform.position + Vector3.up * 0.25f, forward, out wallHit, 1.4f, obstacleLayer, QueryTriggerInteraction.Ignore);
 
-            if (Physics.Raycast(origin, forward, out RaycastHit wallHit, 1.35f, obstacleLayer, QueryTriggerInteraction.Ignore))
+            if (hitWall)
             {
-                Vector3 testTopOrigin = wallHit.point + forward * 0.4f + Vector3.up * 2.5f;
-                if (Physics.Raycast(testTopOrigin, Vector3.down, out RaycastHit ledgeHit, 3.0f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                float[] sampleOffsets = new float[] { 0.12f, 0.28f, 0.45f };
+                RaycastHit ledgeHit = default;
+                bool foundLedge = false;
+
+                foreach (float offset in sampleOffsets)
+                {
+                    Vector3 testTopOrigin = wallHit.point + forward * offset + Vector3.up * 2.5f;
+                    if (Physics.Raycast(testTopOrigin, Vector3.down, out RaycastHit candidateHit, 3.0f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                    {
+                        float h = candidateHit.point.y - transform.position.y;
+                        if (h >= 0.45f && h <= 2.2f)
+                        {
+                            ledgeHit = candidateHit;
+                            foundLedge = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (foundLedge)
                 {
                     float obstacleHeight = ledgeHit.point.y - transform.position.y;
                     if (obstacleHeight >= 0.45f && obstacleHeight <= 1.25f)
@@ -110,7 +139,7 @@ namespace WorldChaseTag.AI
                     else if (obstacleHeight > 1.25f && obstacleHeight <= 2.2f)
                     {
                         // Mantle
-                        Vector3 targetLedgeTop = ledgeHit.point + forward * 0.4f + Vector3.up * 0.05f;
+                        Vector3 targetLedgeTop = ledgeHit.point + forward * 0.3f + Vector3.up * 0.05f;
                         StartCoroutine(ExecuteAIMantle(targetLedgeTop));
                     }
                 }

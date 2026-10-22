@@ -225,8 +225,24 @@ namespace WorldChaseTag.Core
         {
             if (arenaBuilder == null || playerActor == null || aiActorObject == null) return;
 
-            Vector3 chaserPos = arenaBuilder.ChaserPlateSpawn != null ? arenaBuilder.ChaserPlateSpawn.position : new Vector3(0f, 0.1f, -5.2f);
+            Vector3 chaserPos = arenaBuilder.ChaserPlateSpawn != null ? arenaBuilder.ChaserPlateSpawn.position : new Vector3(0f, 0.85f, -4.15f);
             Vector3 evaderPos = arenaBuilder.EvaderSpawn != null ? arenaBuilder.EvaderSpawn.position : new Vector3(0f, 0.1f, 3.2f);
+
+            var pCC = playerActor.GetComponent<CharacterController>();
+            if (pCC != null)
+            {
+                pCC.stepOffset = 0.5f;
+                pCC.slopeLimit = 60f;
+                pCC.skinWidth = 0.03f;
+            }
+
+            var aCC = aiActorObject.GetComponent<CharacterController>();
+            if (aCC != null)
+            {
+                aCC.stepOffset = 0.5f;
+                aCC.slopeLimit = 60f;
+                aCC.skinWidth = 0.03f;
+            }
 
             bool isPlayerEvader = (WCTMatchController.Instance.ActiveEvaderTeam == 0);
 

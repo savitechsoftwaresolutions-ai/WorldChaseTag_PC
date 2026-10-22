@@ -158,6 +158,10 @@ namespace WorldChaseTag.Movement
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            controller.stepOffset = 0.5f;
+            controller.slopeLimit = 60f;
+            controller.skinWidth = 0.03f;
+            controller.minMoveDistance = 0f;
             defaultControllerHeight = controller.height;
 
             if (playerCamera == null)
@@ -427,6 +431,15 @@ namespace WorldChaseTag.Movement
             currentVelocity = horizontalVelocity + Vector3.up * verticalVelocity;
             controller.Move(currentVelocity * Time.deltaTime);
 
+            // Wall slide resolution: prevent sticking onto obstacle corners/faces
+            if ((controller.collisionFlags & CollisionFlags.Sides) != 0 && horizontalVelocity.sqrMagnitude > 0.01f)
+            {
+                if (Physics.Raycast(transform.position + Vector3.up * 0.6f, horizontalVelocity.normalized, out RaycastHit wallGlanceHit, 0.65f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                {
+                    horizontalVelocity = Vector3.ProjectOnPlane(horizontalVelocity, wallGlanceHit.normal);
+                }
+            }
+
             // Step sound
             if (controller.isGrounded && horizontalVelocity.magnitude > 0.8f && !isSliding)
             {
@@ -456,29 +469,51 @@ namespace WorldChaseTag.Movement
             // Do not vault while already vaulting or crouching
             if (isVaulting || isMantling || isCrouching || isSliding) return;
 
-            Vector3 rayOrigin = transform.position + Vector3.up * 0.5f;
             Vector3 forward = transform.forward;
 
-            // Check if player is moving forward toward obstacle and hits Space or is sprinting
-            bool parkourRequested = jumpBufferTimer > 0f || (IsSprinting && Input.GetAxisRaw("Vertical") > 0.5f);
+            // Check if player is moving forward toward obstacle (keyboard or mobile joystick)
+            bool isMovingForward = (Input.GetAxisRaw("Vertical") > 0.3f) || (virtualMoveInput.y > 0.3f);
+            bool isSprintRequested = (Input.GetKey(KeyCode.LeftShift) || virtualSprint) && !isExhausted;
+            bool parkourRequested = jumpBufferTimer > 0f || (isMovingForward && (isSprintRequested || horizontalVelocity.magnitude > 2.5f));
             if (!parkourRequested) return;
 
-            // Raycast forward to find obstacle wall
-            if (Physics.Raycast(rayOrigin, forward, out RaycastHit wallHit, 1.35f, obstacleLayer, QueryTriggerInteraction.Ignore))
+            // Raycast forward from both mid and low heights to catch both high blocks and low hurdles
+            RaycastHit wallHit;
+            bool hitWall = Physics.Raycast(transform.position + Vector3.up * 0.55f, forward, out wallHit, 1.4f, obstacleLayer, QueryTriggerInteraction.Ignore) ||
+                           Physics.Raycast(transform.position + Vector3.up * 0.25f, forward, out wallHit, 1.4f, obstacleLayer, QueryTriggerInteraction.Ignore);
+
+            if (hitWall)
             {
                 // Verify wall angle (nearly vertical)
-                if (Vector3.Angle(wallHit.normal, Vector3.up) > 60f)
+                if (Vector3.Angle(wallHit.normal, Vector3.up) > 50f)
                 {
-                    // Cast downward from above to find top ledge surface
-                    Vector3 testTopOrigin = wallHit.point + forward * 0.4f + Vector3.up * (maxMantleHeight + 0.3f);
-                    if (Physics.Raycast(testTopOrigin, Vector3.down, out RaycastHit ledgeHit, maxMantleHeight + 0.5f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                    // Multi-point forward ledge sampling: catches thin hurdles (0.12m), medium rails (0.28m), and deep blocks (0.45m)
+                    float[] sampleOffsets = new float[] { 0.12f, 0.28f, 0.45f };
+                    RaycastHit ledgeHit = default;
+                    bool foundLedge = false;
+
+                    foreach (float offset in sampleOffsets)
+                    {
+                        Vector3 testTopOrigin = wallHit.point + forward * offset + Vector3.up * (maxMantleHeight + 0.3f);
+                        if (Physics.Raycast(testTopOrigin, Vector3.down, out RaycastHit candidateHit, maxMantleHeight + 0.5f, obstacleLayer, QueryTriggerInteraction.Ignore))
+                        {
+                            float h = candidateHit.point.y - transform.position.y;
+                            if (h >= minVaultHeight && h <= maxMantleHeight)
+                            {
+                                ledgeHit = candidateHit;
+                                foundLedge = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (foundLedge)
                     {
                         float obstacleHeight = ledgeHit.point.y - transform.position.y;
 
                         // Low Vault
                         if (obstacleHeight >= minVaultHeight && obstacleHeight <= maxVaultHeight)
                         {
-                            // Check if landing zone beyond obstacle is clear
                             Vector3 targetLanding = wallHit.point + forward * vaultDistance;
                             targetLanding.y = transform.position.y;
 
@@ -490,7 +525,7 @@ namespace WorldChaseTag.Movement
                         // High Mantle / Ledge Grab
                         if (obstacleHeight > maxVaultHeight && obstacleHeight <= maxMantleHeight)
                         {
-                            Vector3 targetLedgeTop = ledgeHit.point + forward * 0.4f + Vector3.up * 0.05f;
+                            Vector3 targetLedgeTop = ledgeHit.point + forward * 0.3f + Vector3.up * 0.05f;
                             StartCoroutine(ExecuteMantle(targetLedgeTop));
                             jumpBufferTimer = 0f;
                             return;
@@ -508,7 +543,7 @@ namespace WorldChaseTag.Movement
             WCTAudioSynthesizer.Instance?.PlayVaultWhoosh();
 
             Vector3 startPos = transform.position;
-            Vector3 peakPos = vaultPeak + Vector3.up * 0.4f;
+            Vector3 peakPos = vaultPeak + Vector3.up * 0.35f;
 
             float elapsed = 0f;
             while (elapsed < vaultDuration)
@@ -653,6 +688,13 @@ namespace WorldChaseTag.Movement
         private void AttemptTagAction()
         {
             OnParkourActionTriggered?.Invoke("TAG_ATTEMPT");
+
+            // Athletic forward lunge burst when Chaser strikes for a tag
+            if (currentRole == ChaseRole.Chaser)
+            {
+                horizontalVelocity += transform.forward * 3.2f;
+            }
+
             if (WCTTagSystem.Instance != null)
             {
                 WCTTagSystem.Instance.ExecuteTagAttempt(transform.position + Vector3.up * 1.0f, transform.forward);

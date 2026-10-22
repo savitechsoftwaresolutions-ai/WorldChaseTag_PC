@@ -81,13 +81,17 @@ namespace WorldChaseTag.Editor
             GameObject playerObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             playerObj.name = "Player_Athlete";
             playerObj.tag = "Player";
-            playerObj.transform.position = new Vector3(0f, 0.9f, -5.2f);
+            playerObj.transform.position = new Vector3(0f, 1.75f, -4.15f);
             Object.DestroyImmediate(playerObj.GetComponent<Collider>());
 
             CharacterController playerCC = playerObj.AddComponent<CharacterController>();
             playerCC.height = 1.8f;
             playerCC.radius = 0.35f;
             playerCC.center = new Vector3(0f, 0.9f, 0f);
+            playerCC.stepOffset = 0.5f;
+            playerCC.slopeLimit = 60f;
+            playerCC.skinWidth = 0.03f;
+            playerCC.minMoveDistance = 0f;
 
             GameObject camHolder = new GameObject("CameraHolder");
             camHolder.transform.parent = playerObj.transform;
@@ -119,6 +123,10 @@ namespace WorldChaseTag.Editor
             aiCC.height = 1.8f;
             aiCC.radius = 0.35f;
             aiCC.center = new Vector3(0f, 0.9f, 0f);
+            aiCC.stepOffset = 0.5f;
+            aiCC.slopeLimit = 60f;
+            aiCC.skinWidth = 0.03f;
+            aiCC.minMoveDistance = 0f;
 
             WCTAgentMotor aiMotor = aiObj.AddComponent<WCTAgentMotor>();
             WCTChaserAI aiChaser = aiObj.AddComponent<WCTChaserAI>();
